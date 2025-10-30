@@ -139,6 +139,14 @@ class ModelArguments:
             )
         },
     )
+    use_mixed_init: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to use mixed initialization from Qwen3 for GLA Dream model."
+            )
+        },
+    )
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={

@@ -43,7 +43,8 @@ from lmflow.utils.conversation_template import PRESET_TEMPLATES
 from lmflow.utils.data_utils import VLLMInferenceResultWithInput
 from lmflow.tokenization.hf_decoder_model import (
     tokenize_function, 
-    conversation_tokenize_function
+    conversation_tokenize_function,
+    conversation_input_output_tokenize_function
 )
 from lmflow.utils.versioning import is_ray_available, is_vllm_available, is_flash_attn_available
 
@@ -189,6 +190,20 @@ class HFDecoderModel(DecoderModel, HFModelMixin, Tunable):
                 conversation_template = PRESET_TEMPLATES['empty']
                         
             logger.warning(f"Conversation template: {conversation_template}")
+        elif dataset_type == "conversation_input_output":
+            # Handle conversation format with input/output fields
+            if data_args.conversation_template:
+                if data_args.conversation_template in PRESET_TEMPLATES.keys():
+                    conversation_template = PRESET_TEMPLATES[data_args.conversation_template]
+                else:
+                    raise NotImplementedError(
+                        f"Conversation template {data_args.conversation_template} is not supported yet."
+                    )
+            else:
+                logger.warning("No conversation template provided. Using default template.")
+                conversation_template = PRESET_TEMPLATES['empty']
+                        
+            logger.warning(f"Conversation template: {conversation_template}")
         else:
             raise NotImplementedError(
                 f"dataset type \"{dataset_type}\" is not supported, currently"
@@ -196,6 +211,7 @@ class HFDecoderModel(DecoderModel, HFModelMixin, Tunable):
                 f"    1) {TEXT_ONLY_DATASET_DESCRIPTION}\n"
                 f"    2) {TEXT2TEXT_DATASET_DESCRIPTION}\n"
                 f"    3) {CONVERSATION_DATASET_DESCRIPTION}\n"
+                f"    4) conversation_input_output (input/output with conversation format)\n"
             )
 
         # Whether to truncate long sequences to fit into max_length
@@ -203,13 +219,20 @@ class HFDecoderModel(DecoderModel, HFModelMixin, Tunable):
         if model_args.use_lora or data_args.disable_group_texts:
             use_truncation = True
         
-        tokenize_fn = conversation_tokenize_function if "conversation" in dataset_type else tokenize_function
+        # Set tokenize function based on dataset type
+        if dataset_type == "conversation":
+            tokenize_fn = conversation_tokenize_function
+        elif dataset_type == "conversation_input_output":
+            tokenize_fn = conversation_input_output_tokenize_function
+        else:
+            tokenize_fn = tokenize_function
+            
         tokenize_fn_kwargs = {
             "data_args": data_args,
             "tokenizer": self.tokenizer,
             "column_names": column_names,
         }
-        if "conversation" in dataset_type:
+        if dataset_type in ["conversation", "conversation_input_output"]:
             tokenize_fn_kwargs["conversation_template"] = conversation_template
         else:
             tokenize_fn_kwargs["label_columns"] = label_columns
@@ -218,7 +241,8 @@ class HFDecoderModel(DecoderModel, HFModelMixin, Tunable):
             tokenize_fn_kwargs["use_truncation"] = use_truncation
 
         print(f'data_args.conversation_template: {data_args.conversation_template}')
-        print(f'conversation_template: {conversation_template}')
+        if "conversation" in dataset_type:
+            print(f'conversation_template: {conversation_template}')
         print(f'self.tokenizer.chat_template: {self.tokenizer.chat_template}')
         tokenize_kwargs = {}
         if not data_args.streaming:

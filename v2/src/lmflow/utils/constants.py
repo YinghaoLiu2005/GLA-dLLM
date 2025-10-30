@@ -355,6 +355,7 @@ INSTANCE_FIELDS_MAP = {
     "text_only": ["text"],
     "text2text": ["input", "output"],
     "conversation": ["messages"], # system, tools and conversation_id are optional
+    "conversation_input_output": ["input", "output"], # input is list of messages, output is string
     "paired_conversation": ["chosen", "rejected"],
     "paired_text_to_text": ["prompt", "chosen", "rejected"],
     "float_only": ["value"],

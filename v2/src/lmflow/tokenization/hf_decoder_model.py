@@ -2,7 +2,7 @@
 # Copyright 2024 Statistics and Machine Learning Research Group. All rights reserved.
 
 import logging
-from typing import Union
+from typing import Union, Dict
 
 import transformers
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
@@ -105,6 +105,62 @@ def tokenize_function(
             "^^^^^^^^^^^^^^^^ Please ignore the warning above - this long input will be chunked into smaller bits"
             " before being passed to the model."
         )
+    return token_dict
+
+
+def conversation_input_output_tokenize_function(
+    examples, 
+    data_args: DatasetArguments,
+    tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast],
+    conversation_template: str,
+    column_names=None,  # Add this parameter to match the expected signature
+) -> Dict:
+    """Tokenize conversation format with input/output fields.
+    
+    This function handles datasets where:
+    - input: list of messages with role/content structure
+    - output: string response
+    """
+    num_example = len(examples["input"])
+    token_dict = {
+        "input_ids": [[] for _ in range(num_example)],
+        "attention_mask": [[] for _ in range(num_example)],
+        "labels": [[] for _ in range(num_example)],
+    }
+    with CaptureLogger(tok_logger) as cl:
+        for i in range(num_example):
+            # Get input messages and output
+            input_messages = examples["input"][i]
+            output_text = examples["output"][i]
+            
+            # Create full conversation: input messages + assistant response
+            conversation = input_messages.copy()
+            conversation.append({"role": "assistant", "content": output_text})
+            
+            if isinstance(conversation_template, str):  # jinja template
+                encoded_conversation = tokenizer.apply_chat_template(
+                    conversation=conversation,
+                    chat_template=conversation_template,
+                    return_assistant_tokens_mask=True,
+                    return_dict=True,
+                )
+
+                if data_args.train_on_prompt:
+                    labels = encoded_conversation["input_ids"]
+                else:
+                    labels = [
+                        encoded_conversation["input_ids"][index] if mask == 1 else -100
+                        for index, mask in enumerate(encoded_conversation["assistant_masks"])
+                    ]
+
+                token_dict["input_ids"][i] = encoded_conversation["input_ids"]
+                token_dict["attention_mask"][i] = encoded_conversation["attention_mask"]
+                token_dict["labels"][i] = labels
+            else:
+                raise NotImplementedError(
+                    f"conversation_template type {type(conversation_template)} is not supported yet."
+                )
+
     return token_dict
 
 

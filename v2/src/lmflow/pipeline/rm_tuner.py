@@ -7,7 +7,7 @@ import numpy as np
 import datasets
 import transformers
 from transformers import set_seed
-from transformers.utils import send_example_telemetry
+#from transformers.utils import send_example_telemetry
 from transformers.trainer_callback import (
     TrainerCallback
 )

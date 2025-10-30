@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 setup.py
 src/lmflow/__init__.py
@@ -16,6 +17,7 @@ src/lmflow/models/auto_model.py
 src/lmflow/models/base_model.py
 src/lmflow/models/decoder_model.py
 src/lmflow/models/encoder_decoder_model.py
+src/lmflow/models/gla_dream_model.py
 src/lmflow/models/hf_decoder_model.py
 src/lmflow/models/hf_encoder_decoder_model.py
 src/lmflow/models/hf_model_mixin.py

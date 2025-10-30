@@ -47,6 +47,7 @@ DATASET_TYPES = [
     "float_only",
     "image_text",
     "conversation",
+    "conversation_input_output",
     "paired_conversation",
     "paired_text_to_text",
     "text_to_textlist",
@@ -86,24 +87,45 @@ class Dataset:
             return
 
         if backend == "huggingface":
-            data_files = [
+            # Support both .json and .jsonl files
+            json_files = [
                 x.absolute().as_posix()
                  for x in Path(self.dataset_path).glob("*.json")
             ]
+            jsonl_files = [
+                x.absolute().as_posix()
+                 for x in Path(self.dataset_path).glob("*.jsonl")
+            ]
+            data_files = json_files + jsonl_files
             logger.info(f"Data files: \n{data_files}")
+            
+            if not data_files:
+                raise ValueError(f"No .json or .jsonl files found in {self.dataset_path}")
             
             # check if the dataset is in the correct format and get the dataset type (text_only, text2text, etc.)
             self._check_hf_json_format(data_files)
             # Load the dataset using the HuggingFace dataset library
             logger.info('Loading datasets')
-            extensions = "json"
-            raw_dataset = load_dataset(
-                extensions,
-                data_files=data_files,
-                field=KEY_INSTANCES,
-                split="train",
-                cache_dir=data_args.dataset_cache_dir,
-            )
+            
+            # Determine the file extension based on the files found
+            if jsonl_files and not json_files:
+                extensions = "json"
+                # For jsonl files, we need to load them differently
+                raw_dataset = load_dataset(
+                    extensions,
+                    data_files=data_files,
+                    split="train",
+                    cache_dir=data_args.dataset_cache_dir,
+                )
+            else:
+                extensions = "json"
+                raw_dataset = load_dataset(
+                    extensions,
+                    data_files=data_files,
+                    field=KEY_INSTANCES,
+                    split="train",
+                    cache_dir=data_args.dataset_cache_dir,
+                )
             self.backend_dataset = raw_dataset
             self._check_instance_format()
         elif backend == "json":
@@ -141,30 +163,91 @@ class Dataset:
     
     def _check_hf_json_format(self, data_files: List[str]):
         for single_file in tqdm(data_files, desc='Checking dataset keys'):
-            # get type and check if it is consistent
-            json_data_type = get_dataset_type_fast(single_file)
-            if not json_data_type:
-                raise ValueError(
-                    f'"{KEY_TYPE}" must be provided to initialize a dataset,'
-                    f' e.g.\n'
-                    f'    {TEXT_ONLY_DATASET_DESCRIPTION}'
-                )
-            if self.type is None:
-                self.type = json_data_type
-            elif self.type != json_data_type:
-                raise ValueError(
-                    'All task files must have same data types. Previous'
-                    f' files have type "{self.type}", but in file'
-                    f' {single_file}, it has type "{self.type}".'
-                )
-            # check if instances key is provided
-            key_instances_exists_flag = check_dataset_instances_key_fast(single_file, KEY_INSTANCES)
-            if not key_instances_exists_flag:
-                raise ValueError(
-                    f'"{KEY_INSTANCES}" must be provided to initialize a'
-                    f' dataset, e.g.\n'
-                    f'    {TEXT_ONLY_DATASET_DESCRIPTION}'
-                )
+            # Check if this is a jsonl file
+            is_jsonl = single_file.endswith('.jsonl')
+            
+            if is_jsonl:
+                # For jsonl files, infer the type from the data structure
+                jsonl_data_type = self._infer_jsonl_type(single_file)
+                if not jsonl_data_type:
+                    raise ValueError(
+                        f'Could not infer dataset type from jsonl file {single_file}. '
+                        f'Please ensure the file contains valid data with recognizable fields.'
+                    )
+                if self.type is None:
+                    self.type = jsonl_data_type
+                elif self.type != jsonl_data_type:
+                    raise ValueError(
+                        'All task files must have same data types. Previous'
+                        f' files have type "{self.type}", but in file'
+                        f' {single_file}, it has type "{jsonl_data_type}".'
+                    )
+            else:
+                # For regular json files, use the existing logic
+                json_data_type = get_dataset_type_fast(single_file)
+                if not json_data_type:
+                    raise ValueError(
+                        f'"{KEY_TYPE}" must be provided to initialize a dataset,'
+                        f' e.g.\n'
+                        f'    {TEXT_ONLY_DATASET_DESCRIPTION}'
+                    )
+                if self.type is None:
+                    self.type = json_data_type
+                elif self.type != json_data_type:
+                    raise ValueError(
+                        'All task files must have same data types. Previous'
+                        f' files have type "{self.type}", but in file'
+                        f' {single_file}, it has type "{self.type}".'
+                    )
+                # check if instances key is provided for json files
+                key_instances_exists_flag = check_dataset_instances_key_fast(single_file, KEY_INSTANCES)
+                if not key_instances_exists_flag:
+                    raise ValueError(
+                        f'"{KEY_INSTANCES}" must be provided to initialize a'
+                        f' dataset, e.g.\n'
+                        f'    {TEXT_ONLY_DATASET_DESCRIPTION}'
+                    )
+
+    def _infer_jsonl_type(self, file_path: str) -> str:
+        """
+        Infer the dataset type from a jsonl file by examining the structure of the first few lines.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                # Read first few lines to infer type
+                for i, line in enumerate(f):
+                    if i >= 5:  # Check first 5 lines
+                        break
+                    try:
+                        data = json.loads(line.strip())
+                        fields = set(data.keys())
+                        
+                        # Check for different dataset types based on field patterns
+                        if 'input' in fields and 'output' in fields:
+                            # Check if input is a list (conversation format) or string (text2text format)
+                            if isinstance(data['input'], list) and len(data['input']) > 0:
+                                if isinstance(data['input'][0], dict) and 'role' in data['input'][0]:
+                                    # This is conversation format with role-based messages
+                                    return 'conversation_input_output'
+                            return 'text2text'
+                        elif 'messages' in fields:
+                            return 'conversation'
+                        elif 'text' in fields and len(fields) == 1:
+                            return 'text_only'
+                        elif 'prompt' in fields and 'chosen' in fields and 'rejected' in fields:
+                            return 'paired_text_to_text'
+                        elif 'chosen' in fields and 'rejected' in fields:
+                            return 'paired_conversation'
+                        elif 'images' in fields and 'text' in fields:
+                            return 'image_text'
+                        elif 'value' in fields and len(fields) == 1:
+                            return 'float_only'
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.warning(f"Error reading jsonl file {file_path}: {e}")
+        
+        return None
 
 
     def from_dict(self, dict_obj: dict, *args, **kwargs):

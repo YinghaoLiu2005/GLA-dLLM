@@ -28,8 +28,13 @@ from transformers.trainer_callback import (
 )
 from transformers.utils import (
     is_sagemaker_mp_enabled,
-    send_example_telemetry,
 )
+# send_example_telemetry was removed in newer transformers versions
+try:
+    from transformers.utils import send_example_telemetry
+except ImportError:
+    def send_example_telemetry(*args, **kwargs):
+        pass  # No-op fallback
 import numpy as np
 
 import lmflow.optim.optimizers as optim
@@ -482,6 +487,28 @@ class Finetuner(BaseTuner):
 
         train_dataset = lm_dataset.get_backend_dataset()
         logger.info(f"Number of train samples: {len(train_dataset)}")
+        # Diagnostics: batch/steps settings and label coverage
+        try:
+            logger.info(
+                f"per_device_train_batch_size={finetuner_args.per_device_train_batch_size}, "
+                f"gradient_accumulation_steps={finetuner_args.gradient_accumulation_steps}, "
+                f"num_train_epochs={finetuner_args.num_train_epochs}, max_steps={finetuner_args.max_steps}"
+            )
+            # Rough expectation of total steps (single-process approximation)
+            if finetuner_args.max_steps is None or finetuner_args.max_steps <= 0:
+                effective_bs = finetuner_args.per_device_train_batch_size * max(1, finetuner_args.gradient_accumulation_steps)
+                approx_steps_per_epoch = max(1, len(train_dataset) // max(1, effective_bs))
+                logger.info(f"Approx steps/epoch: {approx_steps_per_epoch}")
+            # Peek label coverage
+            sample = train_dataset[0]
+            if isinstance(sample, dict) and 'labels' in sample:
+                labels0 = sample['labels']
+                if hasattr(labels0, 'tolist'):
+                    labels0 = labels0.tolist()
+                valid0 = sum(1 for x in labels0 if x != -100)
+                logger.info(f"Sample[0] label valid count: {valid0} / {len(labels0)}")
+        except Exception as e:
+            logger.warning(f"Diagnostics logging skipped: {e}")
 
         if finetuner_args.do_eval:
             eval_dataset_args = deepcopy(data_args)
