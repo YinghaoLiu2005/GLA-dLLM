@@ -30,7 +30,7 @@ deepspeed --master_port=11000 --num_gpus=4 v2/train_scripts/finetune.py \
     --save_steps 1000 \
     --dataloader_num_workers 8 \
     --preprocessing_num_workers 32 \
-    --save_total_limit 10 \
+    --save_total_limit 2 \
     --gradient_checkpointing 1 \
     --use_mixed_init 1 \
     --bd_size 32

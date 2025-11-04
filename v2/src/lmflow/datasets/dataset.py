@@ -87,7 +87,49 @@ class Dataset:
             return
 
         if backend == "huggingface":
-            # Support both .json and .jsonl files
+            # First, try Parquet support (commonly used for large-scale pretraining corpora like FineWeb)
+            parquet_files = []
+            dataset_path_obj = Path(self.dataset_path)
+            if dataset_path_obj.is_file() and self.dataset_path.endswith('.parquet'):
+                parquet_files = [dataset_path_obj.absolute().as_posix()]
+            else:
+                parquet_files = [
+                    x.absolute().as_posix()
+                    for x in dataset_path_obj.rglob("*.parquet")
+                ]
+
+            # Optionally limit the number of parquet files (e.g., for quick tests)
+            if parquet_files and getattr(self.data_args, 'parquet_max_files', None):
+                try:
+                    max_n = int(self.data_args.parquet_max_files)
+                    if max_n > 0:
+                        parquet_files = sorted(parquet_files)[:max_n]
+                except Exception:
+                    pass
+
+            if parquet_files:
+                logger.info(f"Detected Parquet files (count={len(parquet_files)}). Loading via datasets parquet builder...")
+                raw_dataset = load_dataset(
+                    "parquet",
+                    data_files=parquet_files,
+                    split="train",
+                    cache_dir=data_args.dataset_cache_dir,
+                )
+                # Infer a minimal dataset type; parquet pretraining shards are typically text-only
+                if self.type is None:
+                    # Prefer 'text_only' when a 'text' column exists; otherwise default to 'text_only' and rely on downstream mapping
+                    self.type = 'text_only' if 'text' in raw_dataset.column_names else 'text_only'
+                # Drop empty texts which can cause zero-length sequences downstream
+                if 'text' in raw_dataset.column_names:
+                    try:
+                        raw_dataset = raw_dataset.filter(lambda x: isinstance(x['text'], str) and len(x['text']) > 0)
+                    except Exception:
+                        pass
+                self.backend_dataset = raw_dataset
+                self._check_instance_format()
+                return
+
+            # Fallback to JSON/JSONL support
             json_files = [
                 x.absolute().as_posix()
                  for x in Path(self.dataset_path).glob("*.json")
@@ -100,7 +142,7 @@ class Dataset:
             logger.info(f"Data files: \n{data_files}")
             
             if not data_files:
-                raise ValueError(f"No .json or .jsonl files found in {self.dataset_path}")
+                raise ValueError(f"No .parquet, .json or .jsonl files found in {self.dataset_path}")
             
             # check if the dataset is in the correct format and get the dataset type (text_only, text2text, etc.)
             self._check_hf_json_format(data_files)

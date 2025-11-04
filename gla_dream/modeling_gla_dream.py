@@ -562,6 +562,62 @@ class GLADreamModel(GLADreamGenerationMixin, GLADreamPreTrainedModel):
         
         return gla_model
 
+    @classmethod
+    def from_fast_dllm_pretrained(
+        cls,
+        fast_dllm_model_path: str,
+        gla_config: "GLADreamConfig",
+        **kwargs
+    ):
+        """
+        使用 Fast_dLLM_v2_1.5B 预训练权重初始化 GLA Dream 模型。
+
+        可复用模块直接拷贝，其余新模块随机初始化。
+        """
+        # 1. 加载 Fast-dLLM 模型（依赖其 config 中的 auto_map）
+        from transformers import AutoModel
+        base_model = AutoModel.from_pretrained(fast_dllm_model_path, **kwargs)
+        base_state_dict = base_model.state_dict()
+
+        # 2. 创建 GLA Dream 模型
+        gla_model = cls(gla_config)
+        gla_state_dict = gla_model.state_dict()
+
+        # 3. 定义可复用的组件映射（仅拷贝形状/语义对齐的模块）
+        compatible_mappings = {
+            # 词嵌入层
+            'model.embed_tokens.weight': 'model.embed_tokens.weight',
+            # MLP层
+            'model.layers.{}.mlp.gate_proj.weight': 'model.layers.{}.mlp.gate_proj.weight',
+            'model.layers.{}.mlp.up_proj.weight': 'model.layers.{}.mlp.up_proj.weight',
+            'model.layers.{}.mlp.down_proj.weight': 'model.layers.{}.mlp.down_proj.weight',
+            # LayerNorm（post_attention_layernorm 映射到 GLA 的 post_intra_layernorm）
+            'model.layers.{}.input_layernorm.weight': 'model.layers.{}.input_layernorm.weight',
+            'model.layers.{}.post_attention_layernorm.weight': 'model.layers.{}.post_intra_layernorm.weight',
+            # 输出层 Norm 与 lm_head
+            'model.norm.weight': 'model.norm.weight',
+            'lm_head.weight': 'lm_head.weight',
+        }
+
+        # 4. 复制兼容的权重（逐层处理）
+        for base_key, gla_key in compatible_mappings.items():
+            if '{' in base_key:
+                for layer_idx in range(gla_config.num_hidden_layers):
+                    b_key = base_key.format(layer_idx)
+                    g_key = gla_key.format(layer_idx)
+                    if b_key in base_state_dict and g_key in gla_state_dict and base_state_dict[b_key].shape == gla_state_dict[g_key].shape:
+                        gla_state_dict[g_key] = base_state_dict[b_key].clone()
+            else:
+                if base_key in base_state_dict and base_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[base_key].shape:
+                    gla_state_dict[base_key] = base_state_dict[base_key].clone()
+                elif base_key in base_state_dict and base_key != gla_key and g_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[g_key].shape:
+                    gla_state_dict[g_key] = base_state_dict[base_key].clone()
+
+        # 5. 加载更新后的状态字典
+        gla_model.load_state_dict(gla_state_dict)
+
+        return gla_model
+
     def generate(self, *args, **kwargs):
         """Forward to diffusion-based generation"""
         return self.diffusion_generate(*args, **kwargs)

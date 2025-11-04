@@ -1,0 +1,184 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `4`
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2025-11-03:10:22:36 INFO     [__main__:446] Selected Tasks: ['mbpp_plus']
+2025-11-03:10:22:36 INFO     [evaluator:202] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2025-11-03:10:22:36 INFO     [evaluator:240] Initializing fast_dllm_v2 model, with arguments: {'model_path':
+        '/data/yinghaoliu/Fast-dLLM/models/finetune_fast_dLLM_v2_1.5B/checkpoint-4000', 'show_speed': True}
+2025-11-03:10:22:36 INFO     [__main__:446] Selected Tasks: ['mbpp_plus']
+2025-11-03:10:22:36 INFO     [evaluator:202] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2025-11-03:10:22:36 INFO     [evaluator:240] Initializing fast_dllm_v2 model, with arguments: {'model_path':
+        '/data/yinghaoliu/Fast-dLLM/models/finetune_fast_dLLM_v2_1.5B/checkpoint-4000', 'show_speed': True}
+2025-11-03:10:22:36 INFO     [__main__:446] Selected Tasks: ['mbpp_plus']
+2025-11-03:10:22:36 INFO     [evaluator:202] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2025-11-03:10:22:36 INFO     [evaluator:240] Initializing fast_dllm_v2 model, with arguments: {'model_path':
+        '/data/yinghaoliu/Fast-dLLM/models/finetune_fast_dLLM_v2_1.5B/checkpoint-4000', 'show_speed': True}
+2025-11-03:10:22:36 INFO     [__main__:446] Selected Tasks: ['mbpp_plus']
+2025-11-03:10:22:36 INFO     [evaluator:202] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2025-11-03:10:22:36 INFO     [evaluator:240] Initializing fast_dllm_v2 model, with arguments: {'model_path':
+        '/data/yinghaoliu/Fast-dLLM/models/finetune_fast_dLLM_v2_1.5B/checkpoint-4000', 'show_speed': True}
+Generating test split:   0%|          | 0/378 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 378/378 [00:00<00:00, 9771.21 examples/s]
+2025-11-03:10:22:49 INFO     [evaluator:305] mbpp_plus: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2025-11-03:10:22:49 WARNING  [evaluator:324] Overwriting default num_fewshot of mbpp_plus from 3 to 3
+2025-11-03:10:22:49 INFO     [api.task:434] Building contexts for mbpp_plus on rank 1...
+2025-11-03:10:22:49 INFO     [evaluator:305] mbpp_plus: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2025-11-03:10:22:49 WARNING  [evaluator:324] Overwriting default num_fewshot of mbpp_plus from 3 to 3
+2025-11-03:10:22:49 INFO     [api.task:434] Building contexts for mbpp_plus on rank 3...
+2025-11-03:10:22:49 INFO     [evaluator:305] mbpp_plus: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2025-11-03:10:22:49 WARNING  [evaluator:324] Overwriting default num_fewshot of mbpp_plus from 3 to 3
+2025-11-03:10:22:49 INFO     [api.task:434] Building contexts for mbpp_plus on rank 0...
+  0%|          | 0/95 [00:00<?, ?it/s]  0%|          | 0/94 [00:00<?, ?it/s]  0%|          | 0/95 [00:00<?, ?it/s] 18%|█▊        | 17/95 [00:00<00:00, 161.10it/s] 18%|█▊        | 17/94 [00:00<00:00, 161.73it/s] 18%|█▊        | 17/95 [00:00<00:00, 160.69it/s] 36%|███▌      | 34/95 [00:00<00:00, 161.24it/s] 36%|███▌      | 34/94 [00:00<00:00, 161.61it/s] 36%|███▌      | 34/95 [00:00<00:00, 161.49it/s] 54%|█████▎    | 51/95 [00:00<00:00, 162.42it/s] 54%|█████▍    | 51/94 [00:00<00:00, 163.13it/s] 54%|█████▎    | 51/95 [00:00<00:00, 163.48it/s] 72%|███████▏  | 68/95 [00:00<00:00, 163.06it/s] 72%|███████▏  | 68/94 [00:00<00:00, 163.92it/s] 72%|███████▏  | 68/95 [00:00<00:00, 164.37it/s] 89%|████████▉ | 85/95 [00:00<00:00, 163.26it/s] 90%|█████████ | 85/94 [00:00<00:00, 164.76it/s] 89%|████████▉ | 85/95 [00:00<00:00, 164.69it/s]100%|██████████| 95/95 [00:00<00:00, 162.84it/s]
+100%|██████████| 94/94 [00:00<00:00, 164.09it/s]
+100%|██████████| 95/95 [00:00<00:00, 164.02it/s]
+2025-11-03:10:22:50 INFO     [evaluator:305] mbpp_plus: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2025-11-03:10:22:50 WARNING  [evaluator:324] Overwriting default num_fewshot of mbpp_plus from 3 to 3
+2025-11-03:10:22:50 INFO     [api.task:434] Building contexts for mbpp_plus on rank 2...
+  0%|          | 0/94 [00:00<?, ?it/s] 17%|█▋        | 16/94 [00:00<00:00, 159.54it/s] 35%|███▌      | 33/94 [00:00<00:00, 161.35it/s] 53%|█████▎    | 50/94 [00:00<00:00, 162.52it/s] 71%|███████▏  | 67/94 [00:00<00:00, 163.19it/s] 89%|████████▉ | 84/94 [00:00<00:00, 163.49it/s]100%|██████████| 94/94 [00:00<00:00, 162.81it/s]
+2025-11-03:10:22:51 INFO     [evaluator:574] Running generate_until requests
+2025-11-03:10:22:51 INFO     [evaluator:574] Running generate_until requests
+2025-11-03:10:22:51 INFO     [evaluator:574] Running generate_until requests
+2025-11-03:10:22:51 INFO     [evaluator:574] Running generate_until requests
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 434, in <module>
+[rank0]:     cli_evaluate()
+[rank0]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/__main__.py", line 455, in cli_evaluate
+[rank0]:     results = evaluator.simple_evaluate(
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 357, in simple_evaluate
+[rank0]:     results = evaluate(
+[rank0]:               ^^^^^^^^^
+[rank0]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 585, in evaluate
+[rank0]:     resps = getattr(lm, reqtype)(cloned_reqs)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in generate_until
+[rank0]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank0]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in <lambda>
+[rank0]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank0]:                                              ^^^^^^
+[rank0]: AttributeError: 'tuple' object has no attribute 'args'
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 434, in <module>
+[rank1]:     cli_evaluate()
+[rank1]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/__main__.py", line 455, in cli_evaluate
+[rank1]:     results = evaluator.simple_evaluate(
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 357, in simple_evaluate
+[rank1]:     results = evaluate(
+[rank1]:               ^^^^^^^^^
+[rank1]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 585, in evaluate
+[rank1]:     resps = getattr(lm, reqtype)(cloned_reqs)
+[rank1]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in generate_until
+[rank1]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank1]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in <lambda>
+[rank1]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank1]:                                              ^^^^^^
+[rank1]: AttributeError: 'tuple' object has no attribute 'args'
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 434, in <module>
+[rank3]:     cli_evaluate()
+[rank3]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/__main__.py", line 455, in cli_evaluate
+[rank3]:     results = evaluator.simple_evaluate(
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 357, in simple_evaluate
+[rank3]:     results = evaluate(
+[rank3]:               ^^^^^^^^^
+[rank3]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 585, in evaluate
+[rank3]:     resps = getattr(lm, reqtype)(cloned_reqs)
+[rank3]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in generate_until
+[rank3]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank3]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in <lambda>
+[rank3]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank3]:                                              ^^^^^^
+[rank3]: AttributeError: 'tuple' object has no attribute 'args'
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 434, in <module>
+[rank2]:     cli_evaluate()
+[rank2]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/__main__.py", line 455, in cli_evaluate
+[rank2]:     results = evaluator.simple_evaluate(
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 357, in simple_evaluate
+[rank2]:     results = evaluate(
+[rank2]:               ^^^^^^^^^
+[rank2]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/utils.py", line 456, in _wrapper
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/lm_eval/evaluator.py", line 585, in evaluate
+[rank2]:     resps = getattr(lm, reqtype)(cloned_reqs)
+[rank2]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in generate_until
+[rank2]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank2]:   File "/data/yinghaoliu/Fast-dLLM/v2/eval.py", line 327, in <lambda>
+[rank2]:     reqs_with_indices.sort(key=lambda x: len(x.args))
+[rank2]:                                              ^^^^^^
+[rank2]: AttributeError: 'tuple' object has no attribute 'args'
+[rank0]:[W1103 10:22:51.087828864 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W1103 10:22:53.073000 2452801 /data/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py:908] Sending process 2453006 closing signal SIGTERM
+W1103 10:22:53.073000 2452801 /data/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py:908] Sending process 2453007 closing signal SIGTERM
+E1103 10:22:53.188000 2452801 /data/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 2453005) of binary: /home/yinghaoliu/anaconda3/envs/gla-dllm/bin/python3.11
+Traceback (most recent call last):
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/bin/accelerate", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1226, in launch_command
+    multi_gpu_launcher(args)
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/accelerate/commands/launch.py", line 853, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yinghaoliu/anaconda3/envs/gla-dllm/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+eval.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2025-11-03_10:22:53
+  host      : hustvl-2023
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 2453008)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2025-11-03_10:22:53
+  host      : hustvl-2023
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 2453005)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

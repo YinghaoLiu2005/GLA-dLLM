@@ -371,6 +371,15 @@ class ModelArguments:
             "https://github.com/huggingface/transformers/issues/22482#issuecomment-1595790992"
         },
     )
+    freeze_inherited_weights: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": (
+                "If True, freeze weights inherited from Fast-dLLM checkpoint, "
+                "only train randomly initialized modules in GLADream."
+            )
+        },
+    )
     
 
     def __post_init__(self):
@@ -644,6 +653,10 @@ class DatasetArguments:
     pad_mask_token: bool = field(
         default=False,
         metadata={"help": "Whether to pad mask token."}
+    )
+    parquet_max_files: Optional[int] = field(
+        default=None,
+        metadata={"help": "If set, only load the first N parquet files under dataset_path."}
     )
     def __post_init__(self):
         if self.streaming:
@@ -1484,6 +1497,7 @@ class IterativeDPOAlignerArguments(IterativeAlignerArguments, DPOv2AlignerArgume
 
 PIPELINE_ARGUMENT_MAPPING = {
     "finetuner": FinetunerArguments,
+    "pretrainer": FinetunerArguments,
     "evaluator": EvaluatorArguments,
     "inferencer": InferencerArguments,
     "vllm_inferencer": InferencerArguments,

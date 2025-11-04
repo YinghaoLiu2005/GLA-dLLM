@@ -275,6 +275,19 @@ class HFDecoderModel(DecoderModel, HFModelMixin, Tunable):
             fn_kwargs=tokenize_fn_kwargs,
             **tokenize_kwargs
         )
+        # Drop degenerate samples that create zero-length sequences or no supervised tokens
+        try:
+            tokenized_datasets = tokenized_datasets.filter(
+                lambda x: (
+                    isinstance(x.get("input_ids"), list)
+                    and len(x["input_ids"]) > 0
+                    and isinstance(x.get("labels"), list)
+                    and any((t is not None) and (t != -100) for t in x["labels"])
+                ),
+                num_proc=data_args.preprocessing_num_workers,
+            )
+        except Exception:
+            pass
 
         return tokenized_datasets
 

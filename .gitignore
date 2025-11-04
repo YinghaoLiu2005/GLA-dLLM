@@ -9,3 +9,4 @@ dream/evals_results/
 **/.DS_Store
 wandb/
 models/
+v2/evaluation_results/

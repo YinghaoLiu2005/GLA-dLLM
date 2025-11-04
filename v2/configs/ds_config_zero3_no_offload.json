@@ -22,7 +22,8 @@
         "stage3_param_persistence_threshold": "auto",
         "stage3_max_live_parameters": 2e10,
         "stage3_max_reuse_distance": 2e10,
-        "stage3_gather_16bit_weights_on_model_save": true
+        "stage3_gather_16bit_weights_on_model_save": true,
+        "offload_param": { "device": "cpu", "pin_memory": true }
     },
 
     "gradient_accumulation_steps": "auto",

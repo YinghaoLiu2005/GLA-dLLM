@@ -17,6 +17,7 @@ from lmflow.pipeline.rm_inferencer import RewardModelInferencer
 PIPELINE_MAPPING = {
     "evaluator": Evaluator,
     "finetuner": Finetuner,
+    "pretrainer": Finetuner,
     "inferencer": Inferencer,
     "rm_inferencer": RewardModelInferencer,
     "rm_tuner": RewardModelTuner,

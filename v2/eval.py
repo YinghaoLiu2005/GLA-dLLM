@@ -50,7 +50,7 @@ def set_seed(seed):
 class Fast_dLLM_v2EvalHarness(LM):
     def __init__(
         self,
-        model_path='Efficient-Large-Model/Fast_dLLM_v2_7B',
+        model_path='/data/yinghaoliu/Fast-dLLM/models/Fast_dLLM_v2_1.5B',
         device="cuda",
         show_speed=False,
         max_new_tokens=2048,
@@ -203,7 +203,7 @@ class Fast_dLLM_v2EvalHarness(LM):
                 out.append((ll, 0.0))
         torch.cuda.empty_cache()
         return out
-    
+    '''
     def generate_until(self, requests):
         output = [None] * len(requests)  # pre-allocate output list
         num_tokens = 0
@@ -302,7 +302,130 @@ class Fast_dLLM_v2EvalHarness(LM):
             print(f"Tokens per second: {num_tokens / (end_time - start_time)}")
             
         return output
+    '''
+    def generate_until(self, requests):
+        output = [None] * len(requests)  # pre-allocate output list
+        num_tokens = 0
+        
+        start_time = time.time()
+        
+        # Re-group requests by task to ensure consistent until tokens for a batch
+        requests_by_task = {}
+        for i, req in enumerate(requests):
+            task_name = req.task_name
+            if task_name not in requests_by_task:
+                requests_by_task[task_name] = []
+            requests_by_task[task_name].append((i, req))
 
+        for task_name, reqs_with_indices in requests_by_task.items():
+            
+            reqs_with_indices.sort(key=lambda x: len(x[1].args[0]))
+
+            batched_requests = []
+            current_batch = []
+            for i, req in reqs_with_indices:
+                current_batch.append((i, req))
+                if len(current_batch) == self.batch_size:
+                    batched_requests.append(current_batch)
+                    current_batch = []
+            
+            if current_batch:
+                batched_requests.append(current_batch)
+
+            for _, batch in enumerate(tqdm(batched_requests, desc=f"Generating for {task_name}...")):
+                batched_input_ids = []
+                max_len = 0
+                min_len = 1e9
+                seq_len = []
+                
+                # --- CORRECTLY get stop sequences from the first request in the batch ---
+                stop_sequences = []
+                # The arguments for generate_until are (context, gen_kwargs)
+                if batch and len(batch[0][1].args) > 1 and isinstance(batch[0][1].args[1], dict):
+                    gen_kwargs = batch[0][1].args[1]
+                    stop_sequences = gen_kwargs.get('until', [])
+                # -------------------------------------------------------------------
+
+                for orig_idx, req in batch:
+                    question = req.args[0]
+                    
+                    if req.task_name.startswith('minerva_math'):
+                        question = question.replace("Solution:", "Please reason step by step, and put your final answer within \\boxed{{}}.")
+                    elif req.task_name.startswith('gsm8k'):
+                        question = question.replace("Answer:", "Please reason step by step, and put your final answer within \\boxed{{}}.")
+                    model_inputs = self.tokenizer([question], return_tensors="pt").to(self.device)
+                    
+                    current_len = model_inputs["input_ids"].shape[1]
+                    batched_input_ids.append(model_inputs["input_ids"])
+                    max_len = max(max_len, current_len)
+                    min_len = min(min_len, current_len)
+                    seq_len.append(current_len)
+                
+                # pad batched_input_ids to the same length
+                batched_input_ids = [torch.cat([input_ids, torch.full((1, max_len - input_ids.shape[1]), self.mask_id, dtype=torch.long, device=self.device)], dim=1) for input_ids in batched_input_ids]
+                batched_input_ids = torch.cat(batched_input_ids, dim=0)
+                batched_input_ids = batched_input_ids.to(self.device)
+                
+                with torch.no_grad():
+                    if self.accelerator is not None:
+                        generated_ids = self.accelerator.unwrap_model(self.model).mdm_sample(
+                            batched_input_ids,
+                            tokenizer=self.tokenizer,
+                            block_size=self.bd_size,
+                            small_block_size=self.small_block_size,
+                            max_new_tokens=self.max_new_tokens,
+                            mask_id=self.mask_id,
+                            min_len=min_len,
+                            seq_len=torch.tensor(seq_len, device=self.device, dtype=torch.long),
+                            use_block_cache=self.use_block_cache,
+                            threshold=self.threshold,
+                        )
+                    else:
+                        generated_ids = self.model.mdm_sample(
+                            batched_input_ids,
+                            tokenizer=self.tokenizer,
+                            block_size=self.bd_size,
+                            small_block_size=self.small_block_size,
+                            max_new_tokens=self.max_new_tokens,
+                            mask_id=self.mask_id,
+                            min_len=min_len,
+                            seq_len=torch.tensor(seq_len, device=self.device, dtype=torch.long),
+                            use_block_cache=self.use_block_cache,
+                            threshold=self.threshold,
+                        )
+                
+                for batch_pos, (orig_idx, req) in enumerate(batch):
+                    generated_answer = self.tokenizer.decode(
+                        generated_ids[batch_pos][seq_len[batch_pos]:], 
+                        skip_special_tokens=True
+                    )
+                
+                    # --- Manually truncate the output at the stop sequence ---
+                    if stop_sequences:
+                        for stop_seq in stop_sequences:
+                            stop_index = generated_answer.find(stop_seq)
+                            if stop_index != -1:
+                                generated_answer = generated_answer[:stop_index]
+                    # -------------------------------------------------------------
+
+                    if self.show_speed:
+                        num_tokens += (generated_ids[batch_pos][seq_len[batch_pos]:] != self.mask_id).sum()
+                    
+                    output[orig_idx] = generated_answer
+
+                    # (Optional: you can comment out these prints to make the log cleaner)
+                    # print('=' * 20)
+                    # print('question: ', req.args[0])
+                    # print('answer: ', generated_answer)
+                    # print('=' * 20, end='\n\n')
+            
+        end_time = time.time()
+        if self.show_speed:
+            print(f"Total number of tokens generated: {num_tokens}")
+            print(f"Total time taken: {end_time - start_time} seconds")
+            print(f"Tokens per second: {num_tokens / (end_time - start_time)}")
+            
+        return output
 
 if __name__ == "__main__":
     cli_evaluate()

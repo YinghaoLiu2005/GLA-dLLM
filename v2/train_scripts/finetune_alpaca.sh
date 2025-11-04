@@ -54,7 +54,7 @@ cmd="deepspeed ${deepspeed_args} \
     --save_steps 1000 \
     --dataloader_num_workers 8 \
     --preprocessing_num_workers 32 \
-    --save_total_limit 10 \
+    --save_total_limit 2 \
     --gradient_checkpointing 1 "
 
 echo $cmd
