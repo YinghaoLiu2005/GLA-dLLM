@@ -541,6 +541,10 @@ class DatasetArguments:
     dataset_path: Optional[str] = field(
         default=None, metadata={"help": "The path of the dataset to use."}
     )
+    preprocessed_dataset_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "If provided, load a preprocessed dataset from this path."},
+    )
     dataset_name: Optional[str] = field(
         default="customized", metadata={"help": "Should be \"customized\""}
     )

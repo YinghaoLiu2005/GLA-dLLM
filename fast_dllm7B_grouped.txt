@@ -1,0 +1,486 @@
+=== EMBEDDINGS ===
+embed_tokens.weight	(152064, 3584)
+
+=== LM_HEAD ===
+
+=== GLOBAL_NORMS ===
+norm.weight	(3584,)
+
+=== LAYERS ===
+-- Layer 0 --
+  [attention]
+    layers.0.self_attn.q_proj.weight	(3584, 3584)
+    layers.0.self_attn.q_proj.bias	(3584,)
+    layers.0.self_attn.k_proj.weight	(512, 3584)
+    layers.0.self_attn.k_proj.bias	(512,)
+    layers.0.self_attn.v_proj.weight	(512, 3584)
+    layers.0.self_attn.v_proj.bias	(512,)
+    layers.0.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.0.mlp.gate_proj.weight	(18944, 3584)
+    layers.0.mlp.up_proj.weight	(18944, 3584)
+    layers.0.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.0.input_layernorm.weight	(3584,)
+    layers.0.post_attention_layernorm.weight	(3584,)
+
+-- Layer 1 --
+  [attention]
+    layers.1.self_attn.q_proj.weight	(3584, 3584)
+    layers.1.self_attn.q_proj.bias	(3584,)
+    layers.1.self_attn.k_proj.weight	(512, 3584)
+    layers.1.self_attn.k_proj.bias	(512,)
+    layers.1.self_attn.v_proj.weight	(512, 3584)
+    layers.1.self_attn.v_proj.bias	(512,)
+    layers.1.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.1.mlp.gate_proj.weight	(18944, 3584)
+    layers.1.mlp.up_proj.weight	(18944, 3584)
+    layers.1.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.1.input_layernorm.weight	(3584,)
+    layers.1.post_attention_layernorm.weight	(3584,)
+
+-- Layer 2 --
+  [attention]
+    layers.2.self_attn.q_proj.weight	(3584, 3584)
+    layers.2.self_attn.q_proj.bias	(3584,)
+    layers.2.self_attn.k_proj.weight	(512, 3584)
+    layers.2.self_attn.k_proj.bias	(512,)
+    layers.2.self_attn.v_proj.weight	(512, 3584)
+    layers.2.self_attn.v_proj.bias	(512,)
+    layers.2.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.2.mlp.gate_proj.weight	(18944, 3584)
+    layers.2.mlp.up_proj.weight	(18944, 3584)
+    layers.2.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.2.input_layernorm.weight	(3584,)
+    layers.2.post_attention_layernorm.weight	(3584,)
+
+-- Layer 3 --
+  [attention]
+    layers.3.self_attn.q_proj.weight	(3584, 3584)
+    layers.3.self_attn.q_proj.bias	(3584,)
+    layers.3.self_attn.k_proj.weight	(512, 3584)
+    layers.3.self_attn.k_proj.bias	(512,)
+    layers.3.self_attn.v_proj.weight	(512, 3584)
+    layers.3.self_attn.v_proj.bias	(512,)
+    layers.3.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.3.mlp.gate_proj.weight	(18944, 3584)
+    layers.3.mlp.up_proj.weight	(18944, 3584)
+    layers.3.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.3.input_layernorm.weight	(3584,)
+    layers.3.post_attention_layernorm.weight	(3584,)
+
+-- Layer 4 --
+  [attention]
+    layers.4.self_attn.q_proj.weight	(3584, 3584)
+    layers.4.self_attn.q_proj.bias	(3584,)
+    layers.4.self_attn.k_proj.weight	(512, 3584)
+    layers.4.self_attn.k_proj.bias	(512,)
+    layers.4.self_attn.v_proj.weight	(512, 3584)
+    layers.4.self_attn.v_proj.bias	(512,)
+    layers.4.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.4.mlp.gate_proj.weight	(18944, 3584)
+    layers.4.mlp.up_proj.weight	(18944, 3584)
+    layers.4.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.4.input_layernorm.weight	(3584,)
+    layers.4.post_attention_layernorm.weight	(3584,)
+
+-- Layer 5 --
+  [attention]
+    layers.5.self_attn.q_proj.weight	(3584, 3584)
+    layers.5.self_attn.q_proj.bias	(3584,)
+    layers.5.self_attn.k_proj.weight	(512, 3584)
+    layers.5.self_attn.k_proj.bias	(512,)
+    layers.5.self_attn.v_proj.weight	(512, 3584)
+    layers.5.self_attn.v_proj.bias	(512,)
+    layers.5.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.5.mlp.gate_proj.weight	(18944, 3584)
+    layers.5.mlp.up_proj.weight	(18944, 3584)
+    layers.5.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.5.input_layernorm.weight	(3584,)
+    layers.5.post_attention_layernorm.weight	(3584,)
+
+-- Layer 6 --
+  [attention]
+    layers.6.self_attn.q_proj.weight	(3584, 3584)
+    layers.6.self_attn.q_proj.bias	(3584,)
+    layers.6.self_attn.k_proj.weight	(512, 3584)
+    layers.6.self_attn.k_proj.bias	(512,)
+    layers.6.self_attn.v_proj.weight	(512, 3584)
+    layers.6.self_attn.v_proj.bias	(512,)
+    layers.6.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.6.mlp.gate_proj.weight	(18944, 3584)
+    layers.6.mlp.up_proj.weight	(18944, 3584)
+    layers.6.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.6.input_layernorm.weight	(3584,)
+    layers.6.post_attention_layernorm.weight	(3584,)
+
+-- Layer 7 --
+  [attention]
+    layers.7.self_attn.q_proj.weight	(3584, 3584)
+    layers.7.self_attn.q_proj.bias	(3584,)
+    layers.7.self_attn.k_proj.weight	(512, 3584)
+    layers.7.self_attn.k_proj.bias	(512,)
+    layers.7.self_attn.v_proj.weight	(512, 3584)
+    layers.7.self_attn.v_proj.bias	(512,)
+    layers.7.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.7.mlp.gate_proj.weight	(18944, 3584)
+    layers.7.mlp.up_proj.weight	(18944, 3584)
+    layers.7.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.7.input_layernorm.weight	(3584,)
+    layers.7.post_attention_layernorm.weight	(3584,)
+
+-- Layer 8 --
+  [attention]
+    layers.8.self_attn.q_proj.weight	(3584, 3584)
+    layers.8.self_attn.q_proj.bias	(3584,)
+    layers.8.self_attn.k_proj.weight	(512, 3584)
+    layers.8.self_attn.k_proj.bias	(512,)
+    layers.8.self_attn.v_proj.weight	(512, 3584)
+    layers.8.self_attn.v_proj.bias	(512,)
+    layers.8.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.8.mlp.gate_proj.weight	(18944, 3584)
+    layers.8.mlp.up_proj.weight	(18944, 3584)
+    layers.8.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.8.input_layernorm.weight	(3584,)
+    layers.8.post_attention_layernorm.weight	(3584,)
+
+-- Layer 9 --
+  [attention]
+    layers.9.self_attn.q_proj.weight	(3584, 3584)
+    layers.9.self_attn.q_proj.bias	(3584,)
+    layers.9.self_attn.k_proj.weight	(512, 3584)
+    layers.9.self_attn.k_proj.bias	(512,)
+    layers.9.self_attn.v_proj.weight	(512, 3584)
+    layers.9.self_attn.v_proj.bias	(512,)
+    layers.9.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.9.mlp.gate_proj.weight	(18944, 3584)
+    layers.9.mlp.up_proj.weight	(18944, 3584)
+    layers.9.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.9.input_layernorm.weight	(3584,)
+    layers.9.post_attention_layernorm.weight	(3584,)
+
+-- Layer 10 --
+  [attention]
+    layers.10.self_attn.q_proj.weight	(3584, 3584)
+    layers.10.self_attn.q_proj.bias	(3584,)
+    layers.10.self_attn.k_proj.weight	(512, 3584)
+    layers.10.self_attn.k_proj.bias	(512,)
+    layers.10.self_attn.v_proj.weight	(512, 3584)
+    layers.10.self_attn.v_proj.bias	(512,)
+    layers.10.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.10.mlp.gate_proj.weight	(18944, 3584)
+    layers.10.mlp.up_proj.weight	(18944, 3584)
+    layers.10.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.10.input_layernorm.weight	(3584,)
+    layers.10.post_attention_layernorm.weight	(3584,)
+
+-- Layer 11 --
+  [attention]
+    layers.11.self_attn.q_proj.weight	(3584, 3584)
+    layers.11.self_attn.q_proj.bias	(3584,)
+    layers.11.self_attn.k_proj.weight	(512, 3584)
+    layers.11.self_attn.k_proj.bias	(512,)
+    layers.11.self_attn.v_proj.weight	(512, 3584)
+    layers.11.self_attn.v_proj.bias	(512,)
+    layers.11.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.11.mlp.gate_proj.weight	(18944, 3584)
+    layers.11.mlp.up_proj.weight	(18944, 3584)
+    layers.11.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.11.input_layernorm.weight	(3584,)
+    layers.11.post_attention_layernorm.weight	(3584,)
+
+-- Layer 12 --
+  [attention]
+    layers.12.self_attn.q_proj.weight	(3584, 3584)
+    layers.12.self_attn.q_proj.bias	(3584,)
+    layers.12.self_attn.k_proj.weight	(512, 3584)
+    layers.12.self_attn.k_proj.bias	(512,)
+    layers.12.self_attn.v_proj.weight	(512, 3584)
+    layers.12.self_attn.v_proj.bias	(512,)
+    layers.12.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.12.mlp.gate_proj.weight	(18944, 3584)
+    layers.12.mlp.up_proj.weight	(18944, 3584)
+    layers.12.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.12.input_layernorm.weight	(3584,)
+    layers.12.post_attention_layernorm.weight	(3584,)
+
+-- Layer 13 --
+  [attention]
+    layers.13.self_attn.q_proj.weight	(3584, 3584)
+    layers.13.self_attn.q_proj.bias	(3584,)
+    layers.13.self_attn.k_proj.weight	(512, 3584)
+    layers.13.self_attn.k_proj.bias	(512,)
+    layers.13.self_attn.v_proj.weight	(512, 3584)
+    layers.13.self_attn.v_proj.bias	(512,)
+    layers.13.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.13.mlp.gate_proj.weight	(18944, 3584)
+    layers.13.mlp.up_proj.weight	(18944, 3584)
+    layers.13.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.13.input_layernorm.weight	(3584,)
+    layers.13.post_attention_layernorm.weight	(3584,)
+
+-- Layer 14 --
+  [attention]
+    layers.14.self_attn.q_proj.weight	(3584, 3584)
+    layers.14.self_attn.q_proj.bias	(3584,)
+    layers.14.self_attn.k_proj.weight	(512, 3584)
+    layers.14.self_attn.k_proj.bias	(512,)
+    layers.14.self_attn.v_proj.weight	(512, 3584)
+    layers.14.self_attn.v_proj.bias	(512,)
+    layers.14.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.14.mlp.gate_proj.weight	(18944, 3584)
+    layers.14.mlp.up_proj.weight	(18944, 3584)
+    layers.14.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.14.input_layernorm.weight	(3584,)
+    layers.14.post_attention_layernorm.weight	(3584,)
+
+-- Layer 15 --
+  [attention]
+    layers.15.self_attn.q_proj.weight	(3584, 3584)
+    layers.15.self_attn.q_proj.bias	(3584,)
+    layers.15.self_attn.k_proj.weight	(512, 3584)
+    layers.15.self_attn.k_proj.bias	(512,)
+    layers.15.self_attn.v_proj.weight	(512, 3584)
+    layers.15.self_attn.v_proj.bias	(512,)
+    layers.15.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.15.mlp.gate_proj.weight	(18944, 3584)
+    layers.15.mlp.up_proj.weight	(18944, 3584)
+    layers.15.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.15.input_layernorm.weight	(3584,)
+    layers.15.post_attention_layernorm.weight	(3584,)
+
+-- Layer 16 --
+  [attention]
+    layers.16.self_attn.q_proj.weight	(3584, 3584)
+    layers.16.self_attn.q_proj.bias	(3584,)
+    layers.16.self_attn.k_proj.weight	(512, 3584)
+    layers.16.self_attn.k_proj.bias	(512,)
+    layers.16.self_attn.v_proj.weight	(512, 3584)
+    layers.16.self_attn.v_proj.bias	(512,)
+    layers.16.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.16.mlp.gate_proj.weight	(18944, 3584)
+    layers.16.mlp.up_proj.weight	(18944, 3584)
+    layers.16.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.16.input_layernorm.weight	(3584,)
+    layers.16.post_attention_layernorm.weight	(3584,)
+
+-- Layer 17 --
+  [attention]
+    layers.17.self_attn.q_proj.weight	(3584, 3584)
+    layers.17.self_attn.q_proj.bias	(3584,)
+    layers.17.self_attn.k_proj.weight	(512, 3584)
+    layers.17.self_attn.k_proj.bias	(512,)
+    layers.17.self_attn.v_proj.weight	(512, 3584)
+    layers.17.self_attn.v_proj.bias	(512,)
+    layers.17.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.17.mlp.gate_proj.weight	(18944, 3584)
+    layers.17.mlp.up_proj.weight	(18944, 3584)
+    layers.17.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.17.input_layernorm.weight	(3584,)
+    layers.17.post_attention_layernorm.weight	(3584,)
+
+-- Layer 18 --
+  [attention]
+    layers.18.self_attn.q_proj.weight	(3584, 3584)
+    layers.18.self_attn.q_proj.bias	(3584,)
+    layers.18.self_attn.k_proj.weight	(512, 3584)
+    layers.18.self_attn.k_proj.bias	(512,)
+    layers.18.self_attn.v_proj.weight	(512, 3584)
+    layers.18.self_attn.v_proj.bias	(512,)
+    layers.18.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.18.mlp.gate_proj.weight	(18944, 3584)
+    layers.18.mlp.up_proj.weight	(18944, 3584)
+    layers.18.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.18.input_layernorm.weight	(3584,)
+    layers.18.post_attention_layernorm.weight	(3584,)
+
+-- Layer 19 --
+  [attention]
+    layers.19.self_attn.q_proj.weight	(3584, 3584)
+    layers.19.self_attn.q_proj.bias	(3584,)
+    layers.19.self_attn.k_proj.weight	(512, 3584)
+    layers.19.self_attn.k_proj.bias	(512,)
+    layers.19.self_attn.v_proj.weight	(512, 3584)
+    layers.19.self_attn.v_proj.bias	(512,)
+    layers.19.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.19.mlp.gate_proj.weight	(18944, 3584)
+    layers.19.mlp.up_proj.weight	(18944, 3584)
+    layers.19.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.19.input_layernorm.weight	(3584,)
+    layers.19.post_attention_layernorm.weight	(3584,)
+
+-- Layer 20 --
+  [attention]
+    layers.20.self_attn.q_proj.weight	(3584, 3584)
+    layers.20.self_attn.q_proj.bias	(3584,)
+    layers.20.self_attn.k_proj.weight	(512, 3584)
+    layers.20.self_attn.k_proj.bias	(512,)
+    layers.20.self_attn.v_proj.weight	(512, 3584)
+    layers.20.self_attn.v_proj.bias	(512,)
+    layers.20.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.20.mlp.gate_proj.weight	(18944, 3584)
+    layers.20.mlp.up_proj.weight	(18944, 3584)
+    layers.20.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.20.input_layernorm.weight	(3584,)
+    layers.20.post_attention_layernorm.weight	(3584,)
+
+-- Layer 21 --
+  [attention]
+    layers.21.self_attn.q_proj.weight	(3584, 3584)
+    layers.21.self_attn.q_proj.bias	(3584,)
+    layers.21.self_attn.k_proj.weight	(512, 3584)
+    layers.21.self_attn.k_proj.bias	(512,)
+    layers.21.self_attn.v_proj.weight	(512, 3584)
+    layers.21.self_attn.v_proj.bias	(512,)
+    layers.21.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.21.mlp.gate_proj.weight	(18944, 3584)
+    layers.21.mlp.up_proj.weight	(18944, 3584)
+    layers.21.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.21.input_layernorm.weight	(3584,)
+    layers.21.post_attention_layernorm.weight	(3584,)
+
+-- Layer 22 --
+  [attention]
+    layers.22.self_attn.q_proj.weight	(3584, 3584)
+    layers.22.self_attn.q_proj.bias	(3584,)
+    layers.22.self_attn.k_proj.weight	(512, 3584)
+    layers.22.self_attn.k_proj.bias	(512,)
+    layers.22.self_attn.v_proj.weight	(512, 3584)
+    layers.22.self_attn.v_proj.bias	(512,)
+    layers.22.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.22.mlp.gate_proj.weight	(18944, 3584)
+    layers.22.mlp.up_proj.weight	(18944, 3584)
+    layers.22.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.22.input_layernorm.weight	(3584,)
+    layers.22.post_attention_layernorm.weight	(3584,)
+
+-- Layer 23 --
+  [attention]
+    layers.23.self_attn.q_proj.weight	(3584, 3584)
+    layers.23.self_attn.q_proj.bias	(3584,)
+    layers.23.self_attn.k_proj.weight	(512, 3584)
+    layers.23.self_attn.k_proj.bias	(512,)
+    layers.23.self_attn.v_proj.weight	(512, 3584)
+    layers.23.self_attn.v_proj.bias	(512,)
+    layers.23.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.23.mlp.gate_proj.weight	(18944, 3584)
+    layers.23.mlp.up_proj.weight	(18944, 3584)
+    layers.23.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.23.input_layernorm.weight	(3584,)
+    layers.23.post_attention_layernorm.weight	(3584,)
+
+-- Layer 24 --
+  [attention]
+    layers.24.self_attn.q_proj.weight	(3584, 3584)
+    layers.24.self_attn.q_proj.bias	(3584,)
+    layers.24.self_attn.k_proj.weight	(512, 3584)
+    layers.24.self_attn.k_proj.bias	(512,)
+    layers.24.self_attn.v_proj.weight	(512, 3584)
+    layers.24.self_attn.v_proj.bias	(512,)
+    layers.24.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.24.mlp.gate_proj.weight	(18944, 3584)
+    layers.24.mlp.up_proj.weight	(18944, 3584)
+    layers.24.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.24.input_layernorm.weight	(3584,)
+    layers.24.post_attention_layernorm.weight	(3584,)
+
+-- Layer 25 --
+  [attention]
+    layers.25.self_attn.q_proj.weight	(3584, 3584)
+    layers.25.self_attn.q_proj.bias	(3584,)
+    layers.25.self_attn.k_proj.weight	(512, 3584)
+    layers.25.self_attn.k_proj.bias	(512,)
+    layers.25.self_attn.v_proj.weight	(512, 3584)
+    layers.25.self_attn.v_proj.bias	(512,)
+    layers.25.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.25.mlp.gate_proj.weight	(18944, 3584)
+    layers.25.mlp.up_proj.weight	(18944, 3584)
+    layers.25.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.25.input_layernorm.weight	(3584,)
+    layers.25.post_attention_layernorm.weight	(3584,)
+
+-- Layer 26 --
+  [attention]
+    layers.26.self_attn.q_proj.weight	(3584, 3584)
+    layers.26.self_attn.q_proj.bias	(3584,)
+    layers.26.self_attn.k_proj.weight	(512, 3584)
+    layers.26.self_attn.k_proj.bias	(512,)
+    layers.26.self_attn.v_proj.weight	(512, 3584)
+    layers.26.self_attn.v_proj.bias	(512,)
+    layers.26.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.26.mlp.gate_proj.weight	(18944, 3584)
+    layers.26.mlp.up_proj.weight	(18944, 3584)
+    layers.26.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.26.input_layernorm.weight	(3584,)
+    layers.26.post_attention_layernorm.weight	(3584,)
+
+-- Layer 27 --
+  [attention]
+    layers.27.self_attn.q_proj.weight	(3584, 3584)
+    layers.27.self_attn.q_proj.bias	(3584,)
+    layers.27.self_attn.k_proj.weight	(512, 3584)
+    layers.27.self_attn.k_proj.bias	(512,)
+    layers.27.self_attn.v_proj.weight	(512, 3584)
+    layers.27.self_attn.v_proj.bias	(512,)
+    layers.27.self_attn.o_proj.weight	(3584, 3584)
+  [mlp]
+    layers.27.mlp.gate_proj.weight	(18944, 3584)
+    layers.27.mlp.up_proj.weight	(18944, 3584)
+    layers.27.mlp.down_proj.weight	(3584, 18944)
+  [layernorm]
+    layers.27.input_layernorm.weight	(3584,)
+    layers.27.post_attention_layernorm.weight	(3584,)
+
+=== OTHER ===

@@ -31,10 +31,10 @@ class GLADreamConfig(PretrainedConfig):
     def __init__(
         self,
         vocab_size=151936,
-        hidden_size=1024,
-        intermediate_size=22016,
-        num_hidden_layers=32,
-        num_attention_heads=16,
+        hidden_size=1536,
+        intermediate_size=8960,
+        num_hidden_layers=28,
+        num_attention_heads=24,
         hidden_act="silu",
         max_position_embeddings=32768,
         initializer_range=0.02,
@@ -43,7 +43,7 @@ class GLADreamConfig(PretrainedConfig):
         tie_word_embeddings=False,
         attention_dropout=0.0,
         mask_token_id=151666,
-        pad_token_id=151643,
+        pad_token_id=151645,
         # GLA-specific parameters
         block_size=32,  # Block size for block-wise processing
         expand_k=1,  # Expansion factor for K in GLA
@@ -80,6 +80,11 @@ class GLADreamConfig(PretrainedConfig):
         self.share_inter_intra_gate_weights = share_inter_intra_gate_weights
         self.use_complementary_mask = use_complementary_mask
         self.qwen3_compatible = qwen3_compatible
+        # gla_layer_indices: list of layer indices (0-based) that should use GLA.
+        # If None or empty, all layers use GLA (current behavior). If provided,
+        # only the listed layers will be constructed with the GLA-based layer
+        # implementation; other layers will fall back to Dream's decoder layer.
+        self.gla_layer_indices = kwargs.pop("gla_layer_indices", None)
         
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,

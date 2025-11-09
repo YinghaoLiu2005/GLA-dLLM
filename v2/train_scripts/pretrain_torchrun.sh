@@ -2,20 +2,22 @@
 
 # Fast-dLLM v2 continuous pretraining with GLADream using torchrun (no DeepSpeed)
 # Adjust variables below as needed.
+export PYTORCH_ALLOC_CONF=expandable_segments:True
 
 MASTER_PORT=${MASTER_PORT:-11001}
 NUM_GPUS=${NUM_GPUS:-4}
 
-MODEL_PATH=${MODEL_PATH:-/data/yinghaoliu/Fast-dLLM/models/Fast_dLLM_v2_1.5B}
-DATASET_PATH=${DATASET_PATH:-/data/yinghaoliu/datasets/fineweb-10BT/sample/10BT}
-OUTPUT_DIR=${OUTPUT_DIR:-/data/yinghaoliu/Fast-dLLM/models/pretrain_gla_dream_from_fast_dllm_v2}
+MODEL_PATH=${MODEL_PATH:-/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B}
+DATASET_PATH=${DATASET_PATH:-}
+PREPROCESSED_DATASET_PATH=${PREPROCESSED_DATASET_PATH:-/home/yinghaoliu/preprocessed_data}
+OUTPUT_DIR=${OUTPUT_DIR:-/data/yinghaoliu/GLA-dLLM/trained_models/pretrain_gla_dream_from_fast_dllm_v2}
 
 EPOCHS=${EPOCHS:-1}
-LR=${LR:-2e-5}
-WARMUP_RATIO=${WARMUP_RATIO:-0.03}
+LR=${LR:-2e-6}
+WARMUP_STEPS=${WARMUP_STEPS:-500}
 BLOCK_SIZE=${BLOCK_SIZE:-512}
-BATCH_SIZE_PER_DEVICE=${BATCH_SIZE_PER_DEVICE:-1}
-GRAD_ACCUM_STEPS=${GRAD_ACCUM_STEPS:-8}
+BATCH_SIZE_PER_DEVICE=${BATCH_SIZE_PER_DEVICE:-4}
+GRAD_ACCUM_STEPS=${GRAD_ACCUM_STEPS:-16}
 BD_SIZE=${BD_SIZE:-32}
 LOGGING_STEPS=${LOGGING_STEPS:-10}
 SAVE_STEPS=${SAVE_STEPS:-1000}
@@ -23,6 +25,16 @@ RUN_NAME=${RUN_NAME:-pretrain_gla_fastdllm_v2}
 
 # Set to True to freeze inherited weights, only train randomly initialized modules
 FREEZE_INHERITED=${FREEZE_INHERITED:-True}
+
+PREPROCESSED_ARG=()
+if [[ -n "${PREPROCESSED_DATASET_PATH}" ]]; then
+    PREPROCESSED_ARG=(--preprocessed_dataset_path "${PREPROCESSED_DATASET_PATH}")
+fi
+
+DATASET_ARG=()
+if [[ -n "${DATASET_PATH}" ]]; then
+    DATASET_ARG=(--dataset_path "${DATASET_PATH}")
+fi
 
 set -e
 
@@ -37,18 +49,17 @@ torchrun \
     --nnodes=1 \
     --nproc_per_node=${NUM_GPUS} \
     --master_port=${MASTER_PORT} \
-    /data/yinghaoliu/Fast-dLLM/v2/train_scripts/pretrain.py \
+    /data/yinghaoliu/GLA-dLLM/v2/train_scripts/pretrain.py \
     --model_name_or_path ${MODEL_PATH} \
     --trust_remote_code True \
-    --dataset_path ${DATASET_PATH} \
+    "${DATASET_ARG[@]}" \
+    "${PREPROCESSED_ARG[@]}" \
     --output_dir ${OUTPUT_DIR} \
     --conversation_template fast_dllm_v2 \
-    --num_train_epochs ${EPOCHS} \
+    --max_steps 16000 \
     --learning_rate ${LR} \
     --lr_scheduler_type constant_with_warmup \
-    --warmup_ratio ${WARMUP_RATIO} \
-    --disable_group_texts 1 \
-    --block_size ${BLOCK_SIZE} \
+    --warmup_steps ${WARMUP_STEPS} \
     --per_device_train_batch_size ${BATCH_SIZE_PER_DEVICE} \
     --gradient_accumulation_steps ${GRAD_ACCUM_STEPS} \
     --bf16 \
@@ -59,15 +70,19 @@ torchrun \
     --do_train \
     --ddp_timeout 72000 \
     --save_steps ${SAVE_STEPS} \
-    --dataloader_num_workers 8 \
-    --preprocessing_num_workers 32 \
+    --dataloader_num_workers 2 \
     --save_total_limit 2 \
     --gradient_checkpointing 1 \
     --bd_size ${BD_SIZE} \
-    --parquet_max_files 1 \
-    --ddp_find_unused_parameters False \
+    --ddp_find_unused_parameters True \
     --dataloader_drop_last True \
-    --freeze_inherited_weights ${FREEZE_INHERITED}
+    --freeze_inherited_weights ${FREEZE_INHERITED} \
+    --optim adamw_bnb_8bit \
+    --max_grad_norm 1.0 \
+    --overwrite_output_dir True \
+
+
+
 
 echo "Pretraining completed!"
 

@@ -57,7 +57,8 @@ deepspeed --master_port=${MASTER_PORT} --num_gpus=${NUM_GPUS} /data/yinghaoliu/F
     --bd_size ${BD_SIZE} \
     --parquet_max_files 1 \
     --ddp_find_unused_parameters False \
-    --dataloader_drop_last True
+    --dataloader_drop_last True \
+    --freeze_inherited_weights True
 
 
 echo "Pretraining completed!"

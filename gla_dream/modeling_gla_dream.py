@@ -113,12 +113,8 @@ class BiDirectionalGLABlock(nn.Module):
             expand_k=config.expand_k,
             expand_v=config.expand_v,
         )
-        self.backward_gla = GatedLinearAttention(
-            hidden_size=config.hidden_size,
-            num_heads=config.num_attention_heads,
-            expand_k=config.expand_k,
-            expand_v=config.expand_v,
-        )
+
+
         # Gating mechanism for fusion
         self.gate_proj = nn.Linear(2 * config.hidden_size, config.hidden_size, bias=False)
 
@@ -138,7 +134,7 @@ class BiDirectionalGLABlock(nn.Module):
             h_forward = h_forward[0]
         
         # Backward scan (flip, process, flip back)
-        h_backward = self.backward_gla(torch.flip(hidden_states, [1]))
+        h_backward = self.forward_gla(torch.flip(hidden_states, [1]))
         if isinstance(h_backward, tuple):
             h_backward = h_backward[0]
         h_backward = torch.flip(h_backward, [1])
@@ -175,7 +171,7 @@ class GLADreamDecoderLayer(nn.Module):
         
         # Layer norms
         self.input_layernorm = GLADreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_intra_layernorm = GLADreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = GLADreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_inter_layernorm = GLADreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         
         # FFN
@@ -226,7 +222,7 @@ class GLADreamDecoderLayer(nn.Module):
         
         # 3. FFN after intra-block processing
         residual = hidden_states
-        hidden_states_norm = self.post_intra_layernorm(hidden_states)
+        hidden_states_norm = self.post_attention_layernorm(hidden_states)
         hidden_states_mlp = self.mlp(hidden_states_norm)
         hidden_states = residual + hidden_states_mlp
         
@@ -237,6 +233,8 @@ class GLADreamDecoderLayer(nn.Module):
         gate_input = torch.cat([h_last_forward, h_first_backward], dim=-1)
         gate = torch.sigmoid(self.inter_block_gate_proj(gate_input))
         next_inter_block_state = gate * h_last_forward + (1 - gate) * h_first_backward
+        # 5.Normalize the state before passing it to the next block for stability
+        next_inter_block_state = self.post_inter_layernorm(next_inter_block_state)
         
         return hidden_states, next_inter_block_state
 
@@ -318,9 +316,34 @@ class GLADreamBaseModel(GLADreamPreTrainedModel):
         self.block_size = config.block_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList(
-            [GLADreamDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
-        )
+        # Build layers: allow mixing GLA-based layers and Dream decoder layers.
+        # If config.gla_layer_indices is None or empty, default to all GLA layers
+        self.layers = nn.ModuleList()
+        gla_indices = getattr(config, "gla_layer_indices", None)
+        # Normalize gla_indices to a set for fast lookup
+        if gla_indices is None:
+            gla_set = None
+        else:
+            gla_set = set(gla_indices) if isinstance(gla_indices, (list, tuple, set)) else {int(gla_indices)}
+
+        for layer_idx in range(config.num_hidden_layers):
+            use_gla = gla_set is None or (layer_idx in gla_set)
+            if use_gla:
+                # Use GLA-based layer
+                self.layers.append(GLADreamDecoderLayer(config, layer_idx))
+            else:
+                # Try to fall back to Dream's decoder layer for standard attention
+                try:
+                    # Import here to avoid circular import issues when module not available
+                    from dream.model.modeling_dream import DreamDecoderLayer
+
+                    self.layers.append(DreamDecoderLayer(config, layer_idx))
+                except Exception:
+                    # If Dream's implementation isn't importable, fall back to GLA layer
+                    logging.get_logger(__name__).warning_once(
+                        f"DreamDecoderLayer not available for layer {layer_idx}; falling back to GLA layer."
+                    )
+                    self.layers.append(GLADreamDecoderLayer(config, layer_idx))
         self.norm = GLADreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
         self.gradient_checkpointing = False
@@ -587,15 +610,22 @@ class GLADreamModel(GLADreamGenerationMixin, GLADreamPreTrainedModel):
         compatible_mappings = {
             # 词嵌入层
             'model.embed_tokens.weight': 'model.embed_tokens.weight',
+            'embed_tokens.weight': 'model.embed_tokens.weight',
             # MLP层
             'model.layers.{}.mlp.gate_proj.weight': 'model.layers.{}.mlp.gate_proj.weight',
             'model.layers.{}.mlp.up_proj.weight': 'model.layers.{}.mlp.up_proj.weight',
             'model.layers.{}.mlp.down_proj.weight': 'model.layers.{}.mlp.down_proj.weight',
-            # LayerNorm（post_attention_layernorm 映射到 GLA 的 post_intra_layernorm）
+            'layers.{}.mlp.gate_proj.weight': 'model.layers.{}.mlp.gate_proj.weight',
+            'layers.{}.mlp.up_proj.weight': 'model.layers.{}.mlp.up_proj.weight',
+            'layers.{}.mlp.down_proj.weight': 'model.layers.{}.mlp.down_proj.weight',
+            # LayerNorm（post_attention_layernorm 映射到 GLA 的 post_attention_layernorm）
             'model.layers.{}.input_layernorm.weight': 'model.layers.{}.input_layernorm.weight',
-            'model.layers.{}.post_attention_layernorm.weight': 'model.layers.{}.post_intra_layernorm.weight',
+            'model.layers.{}.post_attention_layernorm.weight': 'model.layers.{}.post_attention_layernorm.weight',
+            'layers.{}.input_layernorm.weight': 'model.layers.{}.input_layernorm.weight',
+            'layers.{}.post_attention_layernorm.weight': 'model.layers.{}.post_attention_layernorm.weight',
             # 输出层 Norm 与 lm_head
             'model.norm.weight': 'model.norm.weight',
+            'norm.weight': 'model.norm.weight',
             'lm_head.weight': 'lm_head.weight',
         }
 
@@ -607,14 +637,27 @@ class GLADreamModel(GLADreamGenerationMixin, GLADreamPreTrainedModel):
                     g_key = gla_key.format(layer_idx)
                     if b_key in base_state_dict and g_key in gla_state_dict and base_state_dict[b_key].shape == gla_state_dict[g_key].shape:
                         gla_state_dict[g_key] = base_state_dict[b_key].clone()
+                        print(f"{g_key} successfully initialization from fast-dllm_v2 (source: {b_key})")
+                    else:
+                        # if no matching source or shape mismatch, we keep random init for this target key
+                        if g_key in gla_state_dict:
+                            print(f"{g_key} initialization from scratch")
             else:
-                if base_key in base_state_dict and base_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[base_key].shape:
+                # try copy from base_key -> gla_key when both exist and shapes match
+                if base_key in base_state_dict and gla_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[gla_key].shape:
+                    gla_state_dict[gla_key] = base_state_dict[base_key].clone()
+                    print(f"{gla_key} successfully initialization from fast-dllm_v2 (source: {base_key})")
+                # fallback: maybe base_key itself is present in gla_state_dict (source has no "model." prefix)
+                elif base_key in base_state_dict and base_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[base_key].shape:
                     gla_state_dict[base_key] = base_state_dict[base_key].clone()
-                elif base_key in base_state_dict and base_key != gla_key and g_key in gla_state_dict and base_state_dict[base_key].shape == gla_state_dict[g_key].shape:
-                    gla_state_dict[g_key] = base_state_dict[base_key].clone()
+                    print(f"{base_key} successfully initialization from fast-dllm_v2 (source: {base_key})")
+                else:
+                    # nothing matched; if target exists, note it will be randomly initialized
+                    if gla_key in gla_state_dict:
+                        print(f"{gla_key} initialization from scratch")
 
         # 5. 加载更新后的状态字典
-        gla_model.load_state_dict(gla_state_dict)
+        gla_model.load_state_dict(gla_state_dict, strict=False)
 
         return gla_model
 
