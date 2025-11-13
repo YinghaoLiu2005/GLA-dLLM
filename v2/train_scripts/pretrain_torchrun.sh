@@ -7,17 +7,16 @@ export PYTORCH_ALLOC_CONF=expandable_segments:True
 MASTER_PORT=${MASTER_PORT:-11001}
 NUM_GPUS=${NUM_GPUS:-4}
 
-MODEL_PATH=${MODEL_PATH:-/data/yinghaoliu/GLA-dLLM/trained_models/pretrain_gla_dream_from_fast_dllm_v2/checkpoint-1000}
-BASE_MODEL_FOR_FREEZING=${BASE_MODEL_FOR_FREEZING:-/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B}
-DATASET_PATH=${DATASET_PATH:-}
-PREPROCESSED_DATASET_PATH=${PREPROCESSED_DATASET_PATH:-/home/yinghaoliu/preprocessed_data}
+MODEL_PATH=${MODEL_PATH:-/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B}
+DATASET_PATH=${DATASET_PATH:-/data/yinghaoliu/datasets/fineweb-10BT/sample/10BT}
+PREPROCESSED_DATASET_PATH=${PREPROCESSED_DATASET_PATH:-/data/yinghaoliu/datasets/preprocessed_data}
 OUTPUT_DIR=${OUTPUT_DIR:-/data/yinghaoliu/GLA-dLLM/trained_models/pretrain_gla_dream_from_fast_dllm_v2}
 
 EPOCHS=${EPOCHS:-1}
 LR=${LR:-1e-5}
 WARMUP_STEPS=${WARMUP_STEPS:-500}
 BLOCK_SIZE=${BLOCK_SIZE:-512}
-BATCH_SIZE_PER_DEVICE=${BATCH_SIZE_PER_DEVICE:-4}
+BATCH_SIZE_PER_DEVICE=${BATCH_SIZE_PER_DEVICE:-1}
 GRAD_ACCUM_STEPS=${GRAD_ACCUM_STEPS:-16}
 BD_SIZE=${BD_SIZE:-32}
 LOGGING_STEPS=${LOGGING_STEPS:-10}
@@ -80,6 +79,7 @@ torchrun \
     --do_train \
     --ddp_timeout 72000 \
     --save_steps ${SAVE_STEPS} \
+    --dataloader_num_workers 64 \
     --save_total_limit 2 \
     --gradient_checkpointing 1 \
     --bd_size ${BD_SIZE} \

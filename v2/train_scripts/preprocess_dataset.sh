@@ -15,7 +15,7 @@ fi
 
 MODEL_PATH=${MODEL_PATH:-/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B}
 RAW_DATASET_PATH=${RAW_DATASET_PATH:-/data/yinghaoliu/datasets/fineweb-10BT/sample/10BT}
-OUTPUT_PATH=${OUTPUT_PATH:-/home/yinghaoliu/preprocessed_data}
+OUTPUT_PATH=${OUTPUT_PATH:-/data/yinghaoliu/datasets/preprocessed_data}
 BLOCK_SIZE=${BLOCK_SIZE:-512}
 DISABLE_GROUP_TEXTS=${DISABLE_GROUP_TEXTS:-0}
 GROUP_TEXTS_BATCH_SIZE=${GROUP_TEXTS_BATCH_SIZE:-1000}

@@ -376,6 +376,12 @@ class GLADreamBaseModel(GLADreamPreTrainedModel):
         
         hidden_states = inputs_embeds
 
+        collected_hidden_states: Optional[List[List[torch.Tensor]]] = None
+        if output_hidden_states:
+            num_layers = len(self.layers)
+            collected_hidden_states = [[] for _ in range(num_layers + 1)]
+            collected_hidden_states[0].append(hidden_states)
+
         # During training, process the whole sequence as blocks
         # During inference, process one block at a time
         num_blocks = hidden_states.shape[1] // self.block_size
@@ -391,25 +397,34 @@ class GLADreamBaseModel(GLADreamPreTrainedModel):
         for i in range(num_blocks):
             current_block = blocks[:, i, :, :]
             
-            block_output, new_states_per_layer = self.process_block(
+            block_output, new_states_per_layer, block_hidden_trace = self.process_block(
                 current_block, 
                 past_inter_block_states=current_states_per_layer,
+                collect_hidden_states=output_hidden_states,
             )
             output_blocks.append(block_output)
             current_states_per_layer = new_states_per_layer
+            if output_hidden_states and collected_hidden_states is not None:
+                for layer_idx, layer_hidden in enumerate(block_hidden_trace, start=1):
+                    collected_hidden_states[layer_idx].append(layer_hidden)
         
         hidden_states = torch.cat(output_blocks, dim=1)
         hidden_states = self.norm(hidden_states)
+
+        all_hidden_states: Optional[Tuple[torch.Tensor, ...]] = None
+        if output_hidden_states and collected_hidden_states is not None:
+            all_hidden_states = tuple(torch.cat(layer_states, dim=1) if len(layer_states) > 1 else layer_states[0]
+                                      for layer_states in collected_hidden_states)
         
         present_states = current_states_per_layer if use_cache else None
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, present_states, None, None] if v is not None)
+            return tuple(v for v in [hidden_states, present_states, all_hidden_states, None] if v is not None)
             
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=present_states,
-            hidden_states=None,
+            hidden_states=all_hidden_states,
             attentions=None,
         )
 
@@ -417,10 +432,12 @@ class GLADreamBaseModel(GLADreamPreTrainedModel):
         self, 
         block_hidden_states: torch.Tensor,
         past_inter_block_states: Optional[Tuple[torch.Tensor]] = None,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
+        collect_hidden_states: bool = False,
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor], Optional[List[torch.Tensor]]]:
         """Process a single block and return output + new inter-block states"""
         
         new_states_across_layers = []
+        layer_hidden_trace: Optional[List[torch.Tensor]] = [] if collect_hidden_states else None
 
         for i, layer in enumerate(self.layers):
             layer_past_state = past_inter_block_states[i] if past_inter_block_states is not None else None
@@ -448,8 +465,10 @@ class GLADreamBaseModel(GLADreamPreTrainedModel):
                 )
 
             new_states_across_layers.append(layer_present_state)
+            if collect_hidden_states and layer_hidden_trace is not None:
+                layer_hidden_trace.append(block_hidden_states)
         
-        return block_hidden_states, tuple(new_states_across_layers)
+        return block_hidden_states, tuple(new_states_across_layers), layer_hidden_trace
 
 class GLADreamModel(GLADreamGenerationMixin, GLADreamPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
