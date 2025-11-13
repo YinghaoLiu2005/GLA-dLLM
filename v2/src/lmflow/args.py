@@ -380,6 +380,10 @@ class ModelArguments:
             )
         },
     )
+    base_model_path_for_freezing: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the base model used as a reference for freezing weights. If not provided, model_name_or_path will be used."}
+    )
     
 
     def __post_init__(self):

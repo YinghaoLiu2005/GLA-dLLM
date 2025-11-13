@@ -100,7 +100,7 @@ class GLADreamGenerationConfig(GenerationConfig):
         self.temperature: float = kwargs.pop("temperature", 0.0)
         self.top_p: Optional[float] = kwargs.pop("top_p", None)
         self.top_k: Optional[int] = kwargs.pop("top_k", None)
-        self.max_length = kwargs.pop("max_length", 20)
+        self.max_length = kwargs.pop("max_length", 512)
         self.max_new_tokens = kwargs.pop("max_new_tokens", None)
         # Generation specific params
         self.threshold: float = kwargs.pop("threshold", 0.9)
@@ -152,7 +152,56 @@ class GLADreamGenerationMixin:
         if attention_mask is not None:
             attention_mask = attention_mask.repeat_interleave(expand_size, dim=0)
         return input_ids, attention_mask
+    def _validate_generated_length(self, generation_config, input_ids_length, has_default_max_length):
+        """Performs validation related to the resulting generated length"""
 
+        # Can't throw warnings/exceptions during compilation
+        if is_torchdynamo_compiling():
+            return
+
+        # 1. Max length warnings related to poor parameterization
+        if has_default_max_length and generation_config.max_new_tokens is None and generation_config.max_length == 20:
+            # 20 is the default max_length of the generation config
+            warnings.warn(
+                f"Using the model-agnostic default `max_length` (={generation_config.max_length}) to control the "
+                "generation length. We recommend setting `max_new_tokens` to control the maximum length of the "
+                "generation.",
+                UserWarning,
+            )
+        if input_ids_length >= generation_config.max_length:
+            input_ids_string = "input_ids"
+            raise ValueError(
+                f"Input length of {input_ids_string} is {input_ids_length}, but `max_length` is set to"
+                f" {generation_config.max_length}. This can lead to unexpected behavior. You should consider"
+                " increasing `max_length` or, better yet, setting `max_new_tokens`."
+            )        
+
+    def _prepare_generated_length(
+        self,
+        generation_config,
+        has_default_max_length,
+        input_ids_length,
+    ):
+        """Prepared max and min length in generation configs to avoid clashes between similar attributes"""
+
+        if generation_config.max_new_tokens is not None:
+            if not has_default_max_length and generation_config.max_length is not None:
+                logger.warning(
+                    f"Both `max_new_tokens` (={generation_config.max_new_tokens}) and `max_length`(="
+                    f"{generation_config.max_length}) seem to have been set. `max_new_tokens` will take precedence. "
+                    "Please refer to the documentation for more information. "
+                    "(https://huggingface.co/docs/transformers/main/en/main_classes/text_generation)"
+                )
+            generation_config.max_length = generation_config.max_new_tokens + input_ids_length
+
+        elif has_default_max_length:
+            if generation_config.max_length == DreamGenerationConfig().max_length:
+                generation_config.max_length = generation_config.max_length + input_ids_length
+                max_position_embeddings = getattr(self.config, "max_position_embeddings", None)
+                if max_position_embeddings is not None:
+                    generation_config.max_length = min(generation_config.max_length, max_position_embeddings)
+
+        return generation_config
     def _prepare_generation_config(
         self, generation_config: Optional[GLADreamGenerationConfig], **kwargs: Dict
     ) -> GLADreamGenerationConfig:
@@ -217,116 +266,118 @@ class GLADreamGenerationMixin:
         **kwargs,
     ) -> Union[GLADreamModelOutput, torch.LongTensor]:
         """
-        Block-wise recursive generation using GLA-Dream architecture.
-        
-        The generation process:
-        1. Process prompt through parallel mode to get initial inter-block state S_prompt
-        2. For each new block i:
-           - Get historical state: S_{i-1} (initially S_prompt)
-           - Initialize current block with [MASK] tokens
-           - Iterative denoising:
-             * Inject S_{i-1} into current_block
-             * Process through bidirectional GLA (parallel for entire block)
-             * Decode high-confidence tokens
-             * Update current_block
-             * Repeat until block is complete
-           - Update global state via inter-block recurrent unit
+        修正后的分块生成函数，严格遵循模型的逐块循环状态传递机制。
         """
-        # Prepare generation config
+        # 1. 准备配置 (不变)
         generation_config = self._prepare_generation_config(generation_config, **kwargs)
-
         assert inputs is not None
         input_ids = inputs
         device = input_ids.device
-        attention_mask = kwargs.pop("attention_mask", None)
         self._prepare_special_tokens(generation_config, device=device)
+        input_ids_length = input_ids.shape[-1]
+        has_default_max_length = kwargs.get("max_length") is None and generation_config.max_length is not None
+        generation_config = self._prepare_generated_length(
+            generation_config=generation_config, has_default_max_length=has_default_max_length, input_ids_length=input_ids_length
+        )
+        self._validate_generated_length(generation_config, input_ids_length, has_default_max_length)
 
-        # Get generation parameters
+        # 2. 获取生成参数 (不变)
         threshold = kwargs.get("threshold", generation_config.threshold)
         block_length = self.config.block_size
-        steps = kwargs.get("steps", generation_config.steps)
+        steps = generation_config.steps
         temperature = generation_config.temperature
         top_p = generation_config.top_p
         top_k = generation_config.top_k
         max_length = generation_config.max_length
         mask_token_id = generation_config.mask_token_id
-        
         return_dict_in_generate = generation_config.return_dict_in_generate
         output_history = generation_config.output_history
-
         histories = [] if (return_dict_in_generate and output_history) else None
 
-        # Prepare input: pad to max_length
+        # 3. 准备输入序列 (不变)
         x = F.pad(input_ids, (0, max_length - input_ids.shape[1]), value=mask_token_id)
         gen_length = max_length - input_ids.shape[1]
-        
         assert gen_length % block_length == 0, f"gen_length ({gen_length}) must be divisible by block_length ({block_length})"
-        num_blocks = gen_length // block_length
-        
-        assert steps % num_blocks == 0, f"steps ({steps}) must be divisible by num_blocks ({num_blocks})"
-        steps_per_block = steps // num_blocks
-        timesteps = torch.linspace(1, 0.001, steps_per_block + 1, device=x.device)
+        num_blocks_to_generate = gen_length // block_length
+        assert steps % num_blocks_to_generate == 0, f"steps ({steps}) must be divisible by num_blocks_to_generate ({num_blocks_to_generate})"
+        steps_per_block = steps // num_blocks_to_generate
 
-        # Initialize past_key_values (inter-block states)
-        past_key_values = None
+        # 4. --- 核心逻辑重构 ---
 
-        # Process prompt and get initial inter-block state
-        # This processes the prompt through all layers to get initial S_prompt
-        current_block_start = input_ids.shape[1]
-        
-        # Generate each block sequentially
-        for num_block in range(num_blocks):
-            current_block_start_idx = input_ids.shape[1] + num_block * block_length
+        # 初始化跨块循环状态 (Inter-block State)
+        # 它的结构是每层一个状态张量，所以是一个元组
+        past_states_per_layer = None
+
+        # 步骤A: 处理输入的Prompt，获得初始的循环状态
+        # 这是至关重要的一步，为真正的生成提供起始上下文
+        if input_ids.shape[1] > 0:
+            prompt_embeds = self.model.embed_tokens(input_ids)
+            num_prompt_blocks = prompt_embeds.shape[1] // block_length
+            prompt_blocks = prompt_embeds.view(prompt_embeds.shape[0], num_prompt_blocks, self.config.block_size, prompt_embeds.shape[-1])
+            
+            for i in range(num_prompt_blocks):
+                # 依次处理每个prompt块，并更新循环状态
+                _, past_states_per_layer = self.model.process_block(
+                    prompt_blocks[:, i, :, :],
+                    past_inter_block_states=past_states_per_layer
+                )
+
+        # 步骤B: 逐个生成新的块
+        for block_idx in range(num_blocks_to_generate):
+            current_block_start_idx = input_ids.shape[1] + block_idx * block_length
             current_block_end_idx = current_block_start_idx + block_length
 
-            # Extract the current block (initialize with [MASK] tokens)
+            # 初始化当前待生成的块，全部为 [MASK]
             current_block_tokens = x[:, current_block_start_idx:current_block_end_idx]
-            mask_index = (current_block_tokens == mask_token_id)
 
-            # Iterative denoising loop for this block
-            iteration = 0
-            while mask_index.sum() > 0 and iteration < steps_per_block:
-                # Process the block through the model
-                # The model will handle inter-block state injection internally
-                model_output = self(input_ids=x, past_key_values=past_key_values, use_cache=True)
-                past_key_values = model_output.past_key_values
-                logits = model_output.logits
-                
-                # Apply token shift for prediction
-                logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
-                
-                # Sample tokens
-                confidence, x0 = sample_tokens(logits, temperature=temperature, top_p=top_p, top_k=top_k)
-                
-                # Update only tokens above confidence threshold
-                mask_index = (x[:, current_block_start_idx:current_block_end_idx] == mask_token_id)
-                if mask_index.sum() > 0:
-                    mask_logits = logits[:, current_block_start_idx:current_block_end_idx][mask_index]
-                    mask_confidence, mask_x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
-                    
-                    # Update tokens with confidence above threshold
-                    high_conf_mask = mask_confidence > threshold
-                    if high_conf_mask.sum() > 0:
-                        update_positions = mask_index.nonzero(as_tuple=False)
-                        for pos in update_positions:
-                            if high_conf_mask[pos[1].item()]:
-                                x[0, current_block_start_idx + pos[1].item()] = mask_x0[pos[1].item()]
-
-                iteration += 1
-
-                # Check if we're done with this block
-                mask_index = (x[:, current_block_start_idx:current_block_end_idx] == mask_token_id)
+            # 步骤C: 在当前块内进行迭代去噪
+            for iteration in range(steps_per_block):
+                mask_index = (current_block_tokens == mask_token_id)
                 if mask_index.sum() == 0:
-                    break
+                    break  # 如果已全部去噪，提前结束
 
-            # After completing this block, update past_key_values with the new inter-block state
-            # This will be handled by the model's internal state management
+                # 准备当前块的输入
+                block_embeds = self.model.embed_tokens(current_block_tokens)
+
+                # 调用 process_block，这是与模型架构匹配的关键！
+                # 我们传入当前块的嵌入和上一个块传来的状态
+                block_hidden_states, _ = self.model.process_block(
+                    block_embeds,
+                    past_inter_block_states=past_states_per_layer
+                )
+                
+                # 手动模拟顶层模型的token shift和lm_head来获取logits
+                shifted_hidden_states = F.pad(block_hidden_states[:, :-1, :], (0, 0, 1, 0))
+                logits = self.lm_head(shifted_hidden_states)
+
+                # 采样和更新逻辑 (与您原版类似)
+                mask_logits = logits[mask_index]
+                mask_confidence, mask_x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
+                
+                high_conf_mask = mask_confidence > threshold
+                if high_conf_mask.sum() > 0:
+                    # 获取需要更新的位置 (在当前块内的相对位置)
+                    update_indices_in_block = mask_index.nonzero(as_tuple=True)
+                    confident_updates = high_conf_mask.nonzero(as_tuple=True)[0]
+                    rows_to_update = update_indices_in_block[0][confident_updates]
+                    cols_to_update = update_indices_in_block[1][confident_updates]
+                    values_to_update = mask_x0[confident_updates]
+                    
+                    # 更新当前块的tokens
+                    current_block_tokens[rows_to_update, cols_to_update] = values_to_update
+            
+            # 步骤D: 当前块去噪完成，将其更新回完整序列 x
+            x[:, current_block_start_idx:current_block_end_idx] = current_block_tokens
+
+            # 步骤E: 为下一个块的生成，计算并更新循环状态
+            # 使用刚刚完成去噪的、干净的块来计算传递给下一个块的最终状态
+            final_block_embeds = self.model.embed_tokens(current_block_tokens)
+            _, past_states_per_layer = self.model.process_block(
+                final_block_embeds,
+                past_inter_block_states=past_states_per_layer
+            )
 
         if return_dict_in_generate:
-            return GLADreamModelOutput(
-                sequences=x,
-                history=histories,
-            )
+            return GLADreamModelOutput(sequences=x, history=histories)
         else:
             return x
-

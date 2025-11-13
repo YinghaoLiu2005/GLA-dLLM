@@ -55,32 +55,48 @@ try:
     from gla_dream.modeling_gla_dream import GLADreamModel
     from gla_dream.configuration_gla_dream import GLADreamConfig
     GLA_DREAM_AVAILABLE = True
+
+    # Register the custom config/model with HF Auto classes so checkpoints with
+    # model_type="GLADream" can be discovered via AutoConfig / AutoModel APIs.
+    from transformers import AutoModelForCausalLM
+
+    try:
+        AutoConfig.register("GLADream", GLADreamConfig)
+    except ValueError:
+        # Already registered in this interpreter session.
+        pass
+
+    try:
+        AutoModelForCausalLM.register(GLADreamConfig, GLADreamModel)
+    except ValueError:
+        pass
+
 except ImportError:
     GLA_DREAM_AVAILABLE = False
     print("Warning: GLA Dream not available. Pretraining with Dream is disabled.")
 
 
-def _freeze_inherited_weights(gla_model, fast_dllm_model_path, trust_remote_code):
+def _freeze_inherited_weights(gla_model, base_model_path, trust_remote_code):
     """
-    Freeze weights that were loaded from Fast-dLLM, only allow training of
+    Freeze weights that were loaded from a base model, only allow training of
     randomly initialized modules.
     
-    Strategy: Load the original Fast-dLLM state dict and freeze any parameters
+    Strategy: Load the base model's state dict and freeze any parameters
     in GLADream that match (shape and name prefix).
     """
     try:
         from transformers import AutoModelForCausalLM
         import torch.nn as nn
         
-        # Load original Fast-dLLM state dict to identify inherited weights
-        print(f"[Freeze] Loading Fast-dLLM state dict from {fast_dllm_model_path}...")
-        fast_dllm_model = AutoModelForCausalLM.from_pretrained(
-            fast_dllm_model_path,
+        # Load original base model state dict to identify inherited weights
+        print(f"[Freeze] Loading base model state dict from {base_model_path} for comparison...")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_path,
             trust_remote_code=trust_remote_code,
             torch_dtype=torch.float32,  # Use float32 for comparison
         )
-        fast_dllm_state = fast_dllm_model.state_dict()
-        del fast_dllm_model  # Free memory
+        base_model_state = base_model.state_dict()
+        del base_model  # Free memory
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
         
         # Get GLADream state dict
@@ -92,10 +108,10 @@ def _freeze_inherited_weights(gla_model, fast_dllm_model_path, trust_remote_code
         
         print("[Freeze] Identifying inherited vs new parameters...")
         for name, param in gla_model.named_parameters():
-            # Check if this parameter exists in Fast-dLLM with matching shape
+            # Check if this parameter exists in the base model with matching shape
             is_inherited = False
-            if name in fast_dllm_state:
-                if param.shape == fast_dllm_state[name].shape:
+            if name in base_model_state:
+                if param.shape == base_model_state[name].shape:
                     is_inherited = True
             
             if is_inherited:
@@ -161,7 +177,14 @@ def main():
     
     # 冻结权重
     if getattr(model_args, 'freeze_inherited_weights', False):
-        _freeze_inherited_weights(gla_model, model_args.model_name_or_path, model_args.trust_remote_code)
+        # Determine the base model path for freezing comparison
+        base_model_for_freezing = model_args.base_model_path_for_freezing or model_args.model_name_or_path
+        print(f"[INFO] Freezing weights based on comparison with: {base_model_for_freezing}")
+        _freeze_inherited_weights(
+            gla_model, 
+            base_model_for_freezing, 
+            model_args.trust_remote_code
+        )
 
     # 3. 【全新部分】加载和处理数据
     print("\n[INFO] Loading and tokenizing data directly using transformers standard flow...")
@@ -439,9 +462,10 @@ def main():
         dataloader_num_workers=getattr(pipeline_args, 'dataloader_num_workers', getattr(data_args, 'dataloader_num_workers', 16)),
         dataloader_drop_last=getattr(pipeline_args, 'dataloader_drop_last', True),
         dataloader_pin_memory=True,
-        dataloader_prefetch_factor=4,
-        dataloader_persistent_workers=True,
+        #dataloader_prefetch_factor=4,
+        #dataloader_persistent_workers=True,
         max_steps=getattr(pipeline_args, 'max_steps', None),
+        torch_compile=True,  # 禁用torch_compile以获得更好的兼容性和可预测性
     )
 
     # 定义数据整理器 Data Collator
@@ -457,8 +481,13 @@ def main():
     )
 
     # 5. 开始训练
-    print("[INFO] Starting training with native transformers.Trainer...")
-    trainer.train()
+    resume_path = getattr(pipeline_args, 'resume_from_checkpoint', None)
+    if resume_path:
+        print(f"[INFO] Resuming training state from checkpoint: {resume_path}")
+    else:
+        print("[INFO] Starting fresh training run (no resume checkpoint specified)...")
+
+    trainer.train(resume_from_checkpoint=resume_path)
     
     print("[INFO] Training finished!")
 

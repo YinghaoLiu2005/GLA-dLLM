@@ -161,7 +161,7 @@ def main():
         print("Wrote gla_all_keys.txt and gla_grouped.txt")
     except Exception as e:
         print("Failed to instantiate GLADreamModel:", e)
-
+'''
     # 3) Dream model (construct and inspect state_dict)
     try:
         from dream.model.modeling_dream import DreamConfig, DreamModel
@@ -184,7 +184,7 @@ def main():
     except Exception as e:
         print("Failed to load Fast_dLLM-7B from", fast_dllm7B_model_path, "error:", e)
 
-
+'''
 
 
 if __name__ == '__main__':
