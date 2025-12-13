@@ -16,26 +16,6 @@ Typical usage example:
 
 import sys
 import os
-
-# Add the src directory to Python path for lmflow module
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.join(current_dir, '..', 'src')
-sys.path.insert(0, src_dir)
-
-# Fix for Accelerator.unwrap_model() compatibility issue
-try:
-    from accelerate import Accelerator
-    original_unwrap_model = Accelerator.unwrap_model
-    
-    def patched_unwrap_model(self, model, **kwargs):
-        # Remove the problematic parameter that doesn't exist in older versions
-        kwargs.pop('keep_torch_compile', None)
-        return original_unwrap_model(self, model, **kwargs)
-    
-    Accelerator.unwrap_model = patched_unwrap_model
-except Exception as e:
-    print(f"Warning: Could not patch Accelerator.unwrap_model: {e}")
-
 from transformers import HfArgumentParser
 
 from lmflow.args import (
@@ -48,17 +28,8 @@ from lmflow.datasets.dataset import Dataset
 from lmflow.models.auto_model import AutoModel
 from lmflow.pipeline.auto_pipeline import AutoPipeline
 
-# Import for mixed initialization
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'gla_dream'))
-try:
-    from gla_dream.modeling_gla_dream import GLADreamModel
-    from gla_dream.configuration_gla_dream import GLADreamConfig
-    GLA_DREAM_AVAILABLE = True
-except ImportError:
-    GLA_DREAM_AVAILABLE = False
-    print("Warning: GLA Dream not available. Mixed initialization disabled.")
+# BiDeltaDiff 权重部分加载工具
+from BiDeltaDiff.models.initialization import load_partial_weights
 
 
 def main():
@@ -74,34 +45,26 @@ def main():
     else:
         model_args, data_args, pipeline_args = parser.parse_args_into_dataclasses()
 
-    # Mixed initialization from Qwen3 if specified
-    if hasattr(model_args, 'use_mixed_init') and model_args.use_mixed_init and GLA_DREAM_AVAILABLE:
-        print("Using mixed initialization from Qwen3...")
-        # Create GLA Dream config compatible with Qwen3
-        gla_config = GLADreamConfig(
-            vocab_size=151936,  # Qwen3 vocab size
-            hidden_size=1024,   # Qwen3-0.6B hidden size
-            num_hidden_layers=24,  # Qwen3-0.6B layers
-            num_attention_heads=16,  # Qwen3-0.6B heads
-            intermediate_size=2816,  # Qwen3-0.6B intermediate size
-            max_position_embeddings=32768,  # Qwen3 max position
-            bd_size=getattr(data_args, 'bd_size', 32),
-        )
-        
-        # Initialize GLA Dream model from Qwen3
-        gla_model = GLADreamModel.from_qwen3_pretrained(
-            qwen3_model_path=model_args.model_name_or_path,
-            gla_config=gla_config
-        )
-        
-        # Convert to AutoModel format for compatibility
-        model = AutoModel.get_model(model_args)
-        model.backend_model = gla_model
-        
-        print("Mixed initialization completed!")
-    else:
-        # Standard initialization
-        model = AutoModel.get_model(model_args)
+    # Build model for fast-dLLM v2-1.5B
+    model = AutoModel.get_model(model_args)
+
+    # 如果提供了旧模型权重路径，则进行部分权重加载
+    # 约定使用 HF-style 的 "model_name_or_path" 字段传入旧权重目录
+    old_model_path = getattr(model_args, "model_name_or_path", None)
+    if old_model_path is not None and os.path.isdir(old_model_path):
+        try:
+            from transformers import AutoModelForCausalLM
+
+            print(f"[Init] 从 {old_model_path} 加载旧模型权重用于部分初始化...")
+            old_model = AutoModelForCausalLM.from_pretrained(
+                old_model_path,
+                trust_remote_code=True,
+            )
+            old_state_dict = old_model.state_dict()
+            model.backend_model = load_partial_weights(model.backend_model, old_state_dict)
+            print("[Init] 部分权重加载完成。")
+        except Exception as e:
+            print(f"[Init] 警告：部分权重加载失败，改为随机初始化。错误信息: {e}")
 
     # Initialization
     finetuner = AutoPipeline.get_pipeline(
@@ -112,13 +75,7 @@ def main():
     )
     dataset = Dataset(data_args)
     
-    # Set bd_size from model config if available, otherwise use default
-    if hasattr(model.backend_model.config, 'bd_size'):
-        data_args.bd_size = model.backend_model.config.bd_size
-    else:
-        # Use default bd_size if not available in model config
-        data_args.bd_size = getattr(data_args, 'bd_size', 32)
-    
+    data_args.bd_size = model.backend_model.config.bd_size
     data_args.mask_id = model.tokenizer.encode("|<MASK>|")[0]
 
     # Finetuning

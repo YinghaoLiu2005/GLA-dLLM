@@ -8,7 +8,6 @@ from .hf_decoder_model import HFDecoderModel
 from .hf_encoder_decoder_model import HFEncoderDecoderModel
 from .hf_text_regression_model import HFTextRegressionModel
 from .gla_dream_model import GLADreamModel
-from .bideltadiff_model import BiDeltaDiffForCausalLM
 
 
 class AutoModel:
@@ -26,8 +25,6 @@ class AutoModel:
             return HFEncoderDecoderModel(model_args, *args, **kwargs)
         elif arch_type == "gla_dream":
             return GLADreamModel(model_args, *args, **kwargs)
-        elif arch_type == "bideltadiff":
-            return BiDeltaDiffForCausalLM(model_args, *args, **kwargs)
         else:
             raise NotImplementedError(
                 f"model architecture type \"{arch_type}\" is not supported"

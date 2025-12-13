@@ -535,7 +535,8 @@ class GLADreamModel(GLADreamGenerationMixin, GLADreamPreTrainedModel):
         if labels is not None:
             # 4. Compute per-token loss (CrossEntropyLoss(ignore_index=-100, reduction='none'))
             loss_per_token = self.loss_fct(logits.view(-1, self.vocab_size), labels.view(-1))
-            valid_mask = (labels.view(-1) != -100).to(loss_per_token.dtype)
+            mask_device = loss_per_token.device
+            valid_mask = (labels.view(-1) != -100).to(device=mask_device, dtype=loss_per_token.dtype)
             valid_tokens = valid_mask.sum().clamp_min(1)
             loss = (loss_per_token * valid_mask).sum() / valid_tokens
 

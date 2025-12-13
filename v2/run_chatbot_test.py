@@ -26,7 +26,7 @@ except ImportError as e:
 
 
 # --- Use the local checkpoint ---
-model_name = "/data/yinghaoliu/GLA-dLLM/trained_models/pretrain_gla_dream_from_fast_dllm_v2/checkpoint-1000"
+model_name = "/data/yinghaoliu/GLA-dLLM/trained_models/finetuning_gla_dream/step-26000"
 
 print(f"[INFO] Loading model from: {model_name}")
 model = AutoModelForCausalLM.from_pretrained(

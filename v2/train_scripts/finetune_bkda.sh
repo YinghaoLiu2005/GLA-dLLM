@@ -1,11 +1,11 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=0,1
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
-dataset_path=/data/yinghaoliu/datasets/SFT/code
-output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B
+dataset_path=/data/yinghaoliu/datasets/SFT/chat
+output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BKDA
 deepspeed_args="--master_port=11000"
 conversation_template=fast_dllm_v2
-#export CUDA_HOME=/lustre/fsw/portfolios/nvr/users/chengyuew/anaconda3/envs/lmflow
+
 
 trust_remote_code=1
 
@@ -29,7 +29,7 @@ if [ -n "${latest_checkpoint}" ]; then
 fi
 
 cmd="deepspeed ${deepspeed_args} \
-  train_scripts/finetune_original.py \
+  v2/train_scripts/finetune_original.py \
     --model_name_or_path ${model_name_or_path} \
     --trust_remote_code ${trust_remote_code} \
     --dataset_path ${dataset_path} \
@@ -44,7 +44,7 @@ cmd="deepspeed ${deepspeed_args} \
     --block_size 512 \
     --per_device_train_batch_size 2 \
     --gradient_accumulation_steps 32 \
-    --deepspeed configs/ds_config_zero2_no_offload.json \
+    --deepspeed v2/configs/ds_config_zero2_no_offload.json \
     --bf16 \
     --run_name finetune \
     --validation_split_percentage 0 \

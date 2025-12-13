@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import random
 
-model_name = "/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B"
+model_name = "/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B/checkpoint-1685"
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
