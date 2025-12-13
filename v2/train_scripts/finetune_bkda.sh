@@ -1,6 +1,8 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export PYTHONPATH=/data/yinghaoliu/GLA-dLLM:$PYTHONPATH
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
+custom_model_path=/data/yinghaoliu/GLA-dLLM/BiDeltaDiff/models
 dataset_path=/data/yinghaoliu/datasets/SFT/chat
 output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BKDA
 deepspeed_args="--master_port=11000"
@@ -29,8 +31,9 @@ if [ -n "${latest_checkpoint}" ]; then
 fi
 
 cmd="deepspeed ${deepspeed_args} \
-  v2/train_scripts/finetune_original.py \
+  v2/train_scripts/finetune.py \
     --model_name_or_path ${model_name_or_path} \
+    --custom_model_path ${custom_model_path} \
     --trust_remote_code ${trust_remote_code} \
     --dataset_path ${dataset_path} \
     --output_dir ${output_dir} \
@@ -42,7 +45,7 @@ cmd="deepspeed ${deepspeed_args} \
     --warmup_ratio 0.03 \
     --disable_group_texts 0 \
     --block_size 512 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 32 \
     --deepspeed v2/configs/ds_config_zero2_no_offload.json \
     --bf16 \

@@ -272,7 +272,9 @@ class BiDeltaDiffModel(BiDeltaDiffPreTrainedModel):
         
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-        
+            
+        if inputs_embeds.dtype == torch.float32:
+            inputs_embeds = inputs_embeds.to(torch.bfloat16)
         hidden_states = inputs_embeds
         
 

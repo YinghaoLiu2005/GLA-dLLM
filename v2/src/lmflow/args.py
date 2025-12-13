@@ -165,6 +165,12 @@ class ModelArguments:
             )
         }
     )
+    
+    custom_model_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the directory containing custom model definition files (e.g., modeling_...py)."}
+    )
+    
     model_type: Optional[str] = field(
         default=None,
         metadata={"help": "If training from scratch, pass a model type from the list: " + ", ".join(MODEL_TYPES)},

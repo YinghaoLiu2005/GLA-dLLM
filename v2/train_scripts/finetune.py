@@ -16,8 +16,10 @@ Typical usage example:
 
 import sys
 import os
-from transformers import HfArgumentParser
-
+# sys.path.remove(os.path.abspath(os.path.dirname(sys.argv[0])))
+from transformers import HfArgumentParser, AutoConfig, AutoModelForCausalLM
+from BiDeltaDiff.models.initialization import load_partial_weights
+from BiDeltaDiff.models import BiDeltaDiffConfig,BiDeltaDiffForCausalLM
 from lmflow.args import (
     ModelArguments,
     DatasetArguments,
@@ -28,12 +30,9 @@ from lmflow.datasets.dataset import Dataset
 from lmflow.models.auto_model import AutoModel
 from lmflow.pipeline.auto_pipeline import AutoPipeline
 
-# BiDeltaDiff 权重部分加载工具
-from BiDeltaDiff.models.initialization import load_partial_weights
-
 
 def main():
-	# Parses arguments
+    # Parses arguments
     pipeline_name = "finetuner"
     PipelineArguments = AutoArguments.get_pipeline_args_class(pipeline_name)
 
@@ -45,26 +44,34 @@ def main():
     else:
         model_args, data_args, pipeline_args = parser.parse_args_into_dataclasses()
 
-    # Build model for fast-dLLM v2-1.5B
-    model = AutoModel.get_model(model_args)
+    # Add custom model path to sys.path to allow for dynamic import
+    if model_args.custom_model_path is not None:
+        # This allows transformers to find your custom modeling code
+        sys.path.insert(0, model_args.custom_model_path)
+        # Also add the root of the project to sys.path to find BiDeltaDiff
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        sys.path.insert(0, project_root)
 
-    # 如果提供了旧模型权重路径，则进行部分权重加载
-    # 约定使用 HF-style 的 "model_name_or_path" 字段传入旧权重目录
-    old_model_path = getattr(model_args, "model_name_or_path", None)
-    if old_model_path is not None and os.path.isdir(old_model_path):
-        try:
-            from transformers import AutoModelForCausalLM
+        print(f"Loading custom model structure from {model_args.custom_model_path}")
+        print(f"Initializing with weights from {model_args.model_name_or_path}")
 
-            print(f"[Init] 从 {old_model_path} 加载旧模型权重用于部分初始化...")
-            old_model = AutoModelForCausalLM.from_pretrained(
-                old_model_path,
-                trust_remote_code=True,
-            )
-            old_state_dict = old_model.state_dict()
-            model.backend_model = load_partial_weights(model.backend_model, old_state_dict)
-            print("[Init] 部分权重加载完成。")
-        except Exception as e:
-            print(f"[Init] 警告：部分权重加载失败，改为随机初始化。错误信息: {e}")
+        # 1. Load the custom model architecture with random weights
+        # `trust_remote_code=True` is crucial for loading your custom python files.
+        new_config = BiDeltaDiffConfig()
+        backend_model = BiDeltaDiffForCausalLM(new_config)
+        print("backend_model class:", backend_model.__class__)
+        # 2. Load the state dict from the pretrained model
+        pretrained_state_dict = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, trust_remote_code=True).state_dict()
+
+        # 3. Use your custom function to load partial weights
+        backend_model = load_partial_weights(backend_model, pretrained_state_dict, verbose=True)
+        
+        # 4. Wrap the loaded model with lmflow's model class
+        model = AutoModel.get_model(model_args)
+        model.backend_model = backend_model
+    else:
+        # Build model for fast-dLLM v2-1.5B (no mixed initialization here)
+        model = AutoModel.get_model(model_args)
 
     # Initialization
     finetuner = AutoPipeline.get_pipeline(
@@ -75,8 +82,10 @@ def main():
     )
     dataset = Dataset(data_args)
     
-    data_args.bd_size = model.backend_model.config.bd_size
-    data_args.mask_id = model.tokenizer.encode("|<MASK>|")[0]
+    # This part might need adjustment depending on your new model's config structure
+    if hasattr(model.backend_model.config, 'bd_size'):
+        data_args.bd_size = model.backend_model.config.bd_size
+        data_args.mask_id = model.tokenizer.encode("|<MASK>|")[0]
 
     # Finetuning
     tuned_model = finetuner.tune(model=model, dataset=dataset)
