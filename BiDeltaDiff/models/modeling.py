@@ -24,7 +24,7 @@ from .configuration import BiDeltaDiffConfig
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 from einops import rearrange, repeat
 
-from fla.layers.kda import KimiDeltaAttention
+from fla.layers.gated_deltanet import GatedDeltaNet
 from fla.modules import RMSNorm
 from fla.modules import GatedMLP
 from fla.modules.l2warp import l2_warp
@@ -43,7 +43,7 @@ class BaseModelOutputWithPastAndBlockCache(BaseModelOutputWithPast):
 class BiDeltaDiffAttention(nn.Module):
     """
     双向 Kimi Delta Attention 模块
-    包含两个 KimiDeltaAttention 实例：一个处理正向，一个处理反向
+    包含两个 GatedDeltaNet 实例：一个处理正向，一个处理反向
     """
     def __init__(self, config: BiDeltaDiffConfig, layer_idx: int):
         super().__init__()
@@ -54,7 +54,7 @@ class BiDeltaDiffAttention(nn.Module):
         self.out_project = nn.Linear(config.hidden_size * 2, config.hidden_size)
 
         # 正向流 (Forward Stream)
-        self.fwd_attn = KimiDeltaAttention(
+        self.fwd_attn = GatedDeltaNet(
             mode=config.attn_mode,
             hidden_size=config.hidden_size,
             expand_v=config.expand_v,
@@ -71,7 +71,7 @@ class BiDeltaDiffAttention(nn.Module):
 
         # 反向流 (Backward Stream) - 只有开启双向才初始化
         if self.is_bidirectional:
-            self.bwd_attn = KimiDeltaAttention(
+            self.bwd_attn = GatedDeltaNet(
                 mode=config.attn_mode,
                 hidden_size=config.hidden_size,
                 expand_v=config.expand_v,
@@ -220,7 +220,7 @@ class BiDeltaDiffPreTrainedModel(PreTrainedModel):
                 module.weight.data[module.padding_idx].zero_()
         
         # KDA 特有的初始化逻辑 (参考 fla 源码)
-        if isinstance(module, KimiDeltaAttention):
+        if isinstance(module, GatedDeltaNet):
             # 这里可以保留 KDA 的特殊初始化，或者简单用正态分布
             pass
 

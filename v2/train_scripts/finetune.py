@@ -44,6 +44,24 @@ def main():
     else:
         model_args, data_args, pipeline_args = parser.parse_args_into_dataclasses()
 
+    is_resuming = False
+    # 检查 pipeline_args 或者 sys.argv
+    if hasattr(pipeline_args, 'resume_from_checkpoint') and pipeline_args.resume_from_checkpoint:
+        is_resuming = True
+    # 双重保险：检查命令行参数
+    for arg in sys.argv:
+        if "--resume_from_checkpoint" in arg:
+            is_resuming = True
+            break
+            
+    if is_resuming:
+        print("\n" + "!"*40)
+        print(">>> 检测到恢复训练模式 (Resuming from Checkpoint)")
+        print(">>> 步骤 A: 跳过 'load_partial_weights' (魔改初始化)")
+        print(">>> 步骤 B: 保持 '冻结逻辑' 一致")
+        print("!"*40 + "\n")
+
+
     # Add custom model path to sys.path to allow for dynamic import
     if model_args.custom_model_path is not None:
         # This allows transformers to find your custom modeling code
@@ -60,18 +78,50 @@ def main():
         new_config = BiDeltaDiffConfig()
         backend_model = BiDeltaDiffForCausalLM(new_config)
         print("backend_model class:", backend_model.__class__)
+        if not is_resuming:
         # 2. Load the state dict from the pretrained model
-        pretrained_state_dict = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, trust_remote_code=True).state_dict()
+            print(f"Initializing with BASE weights from {model_args.model_name_or_path}")
+            pretrained_state_dict = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, trust_remote_code=True).state_dict()
 
-        # 3. Use your custom function to load partial weights
-        backend_model = load_partial_weights(backend_model, pretrained_state_dict, verbose=True)
-        
+            # 3. Use your custom function to load partial weights
+            backend_model = load_partial_weights(backend_model, pretrained_state_dict, verbose=True)
+        else:
+            print(">>> Skipping base weight loading (Waiting for Trainer to load Checkpoint...)")
         # 4. Wrap the loaded model with lmflow's model class
         model = AutoModel.get_model(model_args)
         model.backend_model = backend_model
     else:
         # Build model for fast-dLLM v2-1.5B (no mixed initialization here)
         model = AutoModel.get_model(model_args)
+
+    # Freezing MLP
+    target_model = model.backend_model
+    
+    frozen_keys = []
+    for name, param in target_model.named_parameters():
+        # 只要参数名包含 'mlp'，就将其冻结
+        # 根据你之前的架构，名字通常是 layers.x.mlp.gate_proj.weight 等
+        if "mlp" in name or "embed" in name:
+            param.requires_grad = False
+            frozen_keys.append(name)
+        else:
+            # 确保其他层（如 attn, embed, head）是可训练的
+            param.requires_grad = True
+
+    # --- 打印统计信息以验证 ---
+    trainable_params = 0
+    all_param = 0
+    for _, param in target_model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+
+    print(f">>> 已冻结 MLP 层参数数量: {len(frozen_keys)}")
+    print(f">>> 总参数量: {all_param / 1e9:.2f} B")
+    print(f">>> 可训练参数量: {trainable_params / 1e9:.2f} B")
+    print(f">>> 可训练比例: {100 * trainable_params / all_param:.2f}%")
+    print("="*50 + "\n")
+
 
     # Initialization
     finetuner = AutoPipeline.get_pipeline(

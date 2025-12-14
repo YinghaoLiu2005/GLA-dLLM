@@ -8,27 +8,42 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
     """
     candidates = [new_key]
 
-    # Map:
-    # model.layers.N.attn.fwd_attn.q_proj.weight  -> model.layers.N.self_attn.q_proj.weight
-    # model.layers.N.attn.bwd_attn.q_proj.weight  -> model.layers.N.self_attn.q_proj.weight
-    m = re.match(r"^(model\.layers\.\d+)\.attn\.(fwd_attn|bwd_attn)\.(q_proj|k_proj|v_proj)\.weight$", new_key)
-    if m:
-        prefix, _, proj = m.groups()
-        candidates.extend([
-            f"{prefix}.self_attn.{proj}.weight",
-            f"{prefix}.attn.{proj}.weight",
-            f"{prefix}.attention.{proj}.weight",
-        ])
+    # --- 1. Global Keys Mapping (Embeddings, Head, Norm) ---
+    if "embed_tokens" in new_key:
+        # Fast-dLLM / Qwen usually uses model.embed_tokens.weight
+        candidates.append("model.embed_tokens.weight")
+        candidates.append("transformer.wte.weight") # For older versions
+    elif "lm_head" in new_key:
+        candidates.append("lm_head.weight")
+    elif "norm.weight" in new_key:
+        # BiDeltaDiff (model.norm) -> Fast-dLLM (model.norm or transformer.ln_f)
+        candidates.append("model.norm.weight")
+        candidates.append("transformer.ln_f.weight")
 
-    # If you have a "model.layers.N.attn.q_proj.weight" in the new model too
-    m2 = re.match(r"^(model\.layers\.\d+)\.attn\.(q_proj|k_proj|v_proj)\.weight$", new_key)
-    if m2:
-        prefix, proj = m2.groups()
-        candidates.extend([
-            f"{prefix}.self_attn.{proj}.weight",
-            f"{prefix}.attn.{proj}.weight",
-            f"{prefix}.attention.{proj}.weight",
-        ])
+    # --- 2. Layer-wise Mapping ---
+    # Map: model.layers.N.attn.fwd_attn.q_proj  -> model.layers.N.self_attn.q_proj
+    # Map: model.layers.N.attn_norm             -> model.layers.N.input_layernorm
+    
+    # Capture prefix like "model.layers.0"
+    layer_match = re.match(r"^(model\.layers\.\d+)\.(.*)$", new_key)
+    if layer_match:
+        prefix, suffix = layer_match.groups()
+        
+        # A. Attention Projection Mapping
+        # Matches: attn.fwd_attn.q_proj.weight OR attn.bwd_attn.q_proj.weight
+        m_attn = re.match(r"^attn\.(fwd_attn|bwd_attn)\.(q_proj|k_proj|v_proj)\.weight$", suffix)
+        if m_attn:
+            _, proj = m_attn.groups()
+            candidates.extend([
+                f"{prefix}.self_attn.{proj}.weight",
+                f"{prefix}.attn.{proj}.weight",
+            ])
+        
+        # B. LayerNorm Mapping
+        if "attn_norm" in suffix:
+            candidates.append(f"{prefix}.input_layernorm.weight")
+        if "mlp_norm" in suffix:
+            candidates.append(f"{prefix}.post_attention_layernorm.weight")
 
     # Deduplicate but keep order
     seen = set()
@@ -40,9 +55,11 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
     return out
 
 
+
 def load_partial_weights(
     new_model,
     old_state_dict,
+    head_dim=128,  # [新增参数] 需要知道 head_dim 才能正确切分 GQA
     verbose=True,
     only_print_first_layer: bool = True,
     layer_idx: int = 0,
@@ -53,6 +70,7 @@ def load_partial_weights(
     loaded_from = {}         # new_key -> old_key used
     skipped_missing = []
     skipped_shape = []       # (new_key, new_shape, old_shape, tried_old_key)
+    expanded_keys = []       # [新增] 记录被扩展的 key
 
     for new_key, new_param in new_state_dict.items():
         loaded_flag = False
@@ -62,32 +80,65 @@ def load_partial_weights(
             if old_key not in old_state_dict:
                 continue
             old_param = old_state_dict[old_key]
-            if old_param.shape != new_param.shape:
-                skipped_shape.append((new_key, tuple(new_param.shape), tuple(old_param.shape), old_key))
+            
+            # --- Case 1: Perfect Shape Match ---
+            if old_param.shape == new_param.shape:
+                new_state_dict[new_key] = old_param
+                loaded.append(new_key)
+                loaded_from[new_key] = old_key
+                loaded_flag = True
+                break
+            
+            # --- Case 2: GQA Expansion (k_proj, v_proj) ---
+            # 如果是 K 或 V，且新维度是旧维度的整数倍，则执行复制扩展
+            elif ("k_proj" in new_key or "v_proj" in new_key) and \
+                 (new_param.shape[1] == old_param.shape[1]) and \
+                 (new_param.shape[0] > old_param.shape[0]) and \
+                 (new_param.shape[0] % old_param.shape[0] == 0):
+                
+                ratio = new_param.shape[0] // old_param.shape[0]
+                
+                # Reshape logic: [n_kv * head_dim, hidden] -> [n_kv, head_dim, hidden]
+                n_kv_old = old_param.shape[0] // head_dim
+                hidden_size = old_param.shape[1]
+                
+                # 1. View as heads
+                w_reshaped = old_param.view(n_kv_old, head_dim, hidden_size)
+                # 2. Repeat heads: [n_kv, ratio, head_dim, hidden]
+                w_expanded = w_reshaped.unsqueeze(1).repeat(1, ratio, 1, 1)
+                # 3. Flatten back: [n_kv * ratio * head_dim, hidden] -> [1536, 1536]
+                w_final = w_expanded.reshape(-1, hidden_size)
+                
+                new_state_dict[new_key] = w_final
+                loaded.append(new_key)
+                loaded_from[new_key] = f"{old_key} (Expanded x{ratio})"
+                expanded_keys.append(new_key)
+                loaded_flag = True
+                break
+            
+            else:
+                # 记录最后一次尝试的 mismatched shape
+                if old_key == tried[-1]: 
+                    skipped_shape.append((new_key, tuple(new_param.shape), tuple(old_param.shape), old_key))
                 continue
 
-            new_state_dict[new_key] = old_param
-            loaded.append(new_key)
-            loaded_from[new_key] = old_key
-            loaded_flag = True
-            break
-
         if not loaded_flag:
-            # none of candidates exist w/ matching shape
-            if any(k in old_state_dict for k in tried):
-                # existed but shape mismatch (already recorded), still mark as missing for summary? no
-                pass
-            else:
+            # 只有当所有候选 key 都不匹配或不存在时，才算 missing
+            # 如果是因为 shape mismatch 被上面捕获了，这里其实也会走到，
+            # 但我们在 summary 打印时主要看 skipped_missing 和 skipped_shape
+            # 简单的逻辑：没 loaded 就是 missing (或者 shape mismatch 导致没 load)
+            if not any(k in old_state_dict for k in tried):
                 skipped_missing.append(new_key)
 
     new_model.load_state_dict(new_state_dict)
 
     if verbose:
-        # Filter to layer_idx for printing
+        # [修改] 更新正则过滤器，允许全局参数通过
         patterns = [
-            rf"(^|\.)(layers|layer)\.{layer_idx}\.",
-            rf"(^|\.)(model)\.(layers|layer)\.{layer_idx}\.",
-            rf"(^|\.)(transformer)\.(h|layers)\.{layer_idx}\.",
+            rf"(^|\.)(layers|layer)\.{layer_idx}\.",       # 匹配指定层
+            r"embed_tokens",                                # 匹配 Embedding
+            r"lm_head",                                     # 匹配 LM Head
+            r"model\.norm",                                 # 匹配全局 Norm
         ]
         layer_re = re.compile("|".join(f"(?:{p})" for p in patterns))
 
@@ -95,27 +146,27 @@ def load_partial_weights(
         missing_p = [k for k in skipped_missing if layer_re.search(k)]
         shape_p = [x for x in skipped_shape if layer_re.search(x[0])]
 
-        print(f"\n========== Loaded Weights (layer {layer_idx} only) ==========\n")
+        print(f"\n========== Loaded Weights (Global + Layer {layer_idx}) ==========\n")
         for k in loaded_p:
             src = loaded_from.get(k, k)
-            if src != k:
-                print(f"{k}  <=  {src}")
+            prefix = "[EXPANDED]" if k in expanded_keys else ""
+            if src != k or prefix:
+                print(f"{prefix} {k}  <=  {src}")
             else:
                 print(k)
 
-        print(f"\n========== Skipped (missing key) (layer {layer_idx} only) ==========\n")
+        print(f"\n========== Skipped (missing key) (Global + Layer {layer_idx}) ==========\n")
         for k in missing_p:
             print(k)
 
-        print(f"\n========== Skipped (shape mismatch) (layer {layer_idx} only) ==========\n")
-        # show only first few to avoid huge spam
-        for new_key, new_shape, old_shape, old_key in shape_p[:200]:
+        print(f"\n========== Skipped (shape mismatch) (Global + Layer {layer_idx}) ==========\n")
+        for new_key, new_shape, old_shape, old_key in shape_p[:50]:
             print(f"{new_key}  !=shape  {old_key} | new={new_shape} old={old_shape}")
 
         print(
-            f"\n[load_partial_weights] layer {layer_idx}: "
+            f"\n[load_partial_weights] Filtered View (Global + Layer {layer_idx}): "
             f"loaded={len(loaded_p)}, missing={len(missing_p)}, shape_mismatch={len(shape_p)} "
-            f"(total loaded={len(loaded)}, total missing={len(skipped_missing)}, total shape_mismatch={len(skipped_shape)})\n"
+            f"(Total processed: loaded={len(loaded)}, missing={len(skipped_missing)})\n"
         )
 
     return new_model

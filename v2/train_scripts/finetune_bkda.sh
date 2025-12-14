@@ -1,6 +1,14 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=1,2
 export PYTHONPATH=/data/yinghaoliu/GLA-dLLM:$PYTHONPATH
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export TMPDIR=/data/yinghaoliu/tmp
+export TEMP=/data/yinghaoliu/tmp
+export TMP=/data/yinghaoliu/tmp
+export HF_HOME="/data/yinghaoliu/hf_cache"
+export HF_DATASETS_CACHE="/data/yinghaoliu/hf_cache/datasets"
+export TRANSFORMERS_CACHE="/data/yinghaoliu/hf_cache/hub"
+
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
 custom_model_path=/data/yinghaoliu/GLA-dLLM/BiDeltaDiff/models
 dataset_path=/data/yinghaoliu/datasets/SFT/chat
