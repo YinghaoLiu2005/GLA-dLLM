@@ -682,6 +682,14 @@ class DatasetArguments:
         default=None,
         metadata={"help": "If set, only load the first N parquet files under dataset_path."}
     )
+    dataset_num_shards: int = field(
+        default=1,
+        metadata={"help": "Split training dataset into N shards, use only one shard"}
+    )
+    dataset_shard_index: int = field(
+        default=0,
+        metadata={"help": "Which shard index to use"}
+    )    
     def __post_init__(self):
         if self.streaming:
             require_version("datasets>=2.0.0", "The streaming feature requires `datasets>=2.0.0`")

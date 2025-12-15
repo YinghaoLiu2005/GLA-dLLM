@@ -1,5 +1,5 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=1,2
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 export PYTHONPATH=/data/yinghaoliu/GLA-dLLM:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export TMPDIR=/data/yinghaoliu/tmp
@@ -11,7 +11,7 @@ export TRANSFORMERS_CACHE="/data/yinghaoliu/hf_cache/hub"
 
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
 custom_model_path=/data/yinghaoliu/GLA-dLLM/BiDeltaDiff/models
-dataset_path=/data/yinghaoliu/datasets/SFT/chat
+dataset_path=/data/yinghaoliu/datasets/SFT/code
 output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BKDA
 deepspeed_args="--master_port=11000"
 conversation_template=fast_dllm_v2
@@ -54,7 +54,7 @@ cmd="deepspeed ${deepspeed_args} \
     --disable_group_texts 0 \
     --block_size 512 \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 32 \
+    --gradient_accumulation_steps 64 \
     --deepspeed v2/configs/ds_config_zero2_no_offload.json \
     --bf16 \
     --run_name finetune \
@@ -64,9 +64,12 @@ cmd="deepspeed ${deepspeed_args} \
     --ddp_timeout 72000 \
     --save_steps 1000 \
     --dataloader_num_workers 8 \
-    --preprocessing_num_workers 32 \
+    --preprocessing_num_workers 16 \
     --save_total_limit 2 \
-    --gradient_checkpointing 1 "
+    --gradient_checkpointing 1 \
+    --dataset_num_shards 8 \
+    --dataset_shard_index 0 \
+    "
 
 echo $cmd
 eval $cmd

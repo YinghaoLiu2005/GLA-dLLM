@@ -18,7 +18,7 @@ import sys
 import os
 # sys.path.remove(os.path.abspath(os.path.dirname(sys.argv[0])))
 from transformers import HfArgumentParser, AutoConfig, AutoModelForCausalLM
-from BiDeltaDiff.models.initialization import load_partial_weights
+from BiDeltaDiff.models.initialization import load_partial_weights 
 from BiDeltaDiff.models import BiDeltaDiffConfig,BiDeltaDiffForCausalLM
 from lmflow.args import (
     ModelArguments,
@@ -29,6 +29,8 @@ from lmflow.args import (
 from lmflow.datasets.dataset import Dataset
 from lmflow.models.auto_model import AutoModel
 from lmflow.pipeline.auto_pipeline import AutoPipeline
+
+
 
 
 def main():
@@ -130,8 +132,40 @@ def main():
         data_args=data_args,
         pipeline_args=pipeline_args,
     )
+    data_args.file_pattern = "code_v1.1_clean.jsonl"
     dataset = Dataset(data_args)
-    
+    if (
+        not is_resuming
+        and data_args.dataset_num_shards > 1
+    ):
+        print(
+            f">>> Using dataset shard "
+            f"{data_args.dataset_shard_index}/{data_args.dataset_num_shards}"
+        )
+
+        backend_ds = dataset.backend_dataset
+
+        # 情况 1：DatasetDict（最常见）
+        if hasattr(backend_ds, "keys") and "train" in backend_ds:
+            backend_ds["train"] = backend_ds["train"].shard(
+                num_shards=data_args.dataset_num_shards,
+                index=data_args.dataset_shard_index,
+            )
+
+        # 情况 2：单一 Dataset
+        elif hasattr(backend_ds, "shard"):
+            dataset.backend_dataset = backend_ds.shard(
+                num_shards=data_args.dataset_num_shards,
+                index=data_args.dataset_shard_index,
+            )
+
+        else:
+            raise RuntimeError(
+                f"Unknown backend_dataset type: {type(backend_ds)}"
+            )
+    else:
+        print(">>> Using full dataset (no sharding or resuming)")
+
     # This part might need adjustment depending on your new model's config structure
     if hasattr(model.backend_model.config, 'bd_size'):
         data_args.bd_size = model.backend_model.config.bd_size

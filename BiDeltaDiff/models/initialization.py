@@ -1,5 +1,6 @@
 import torch
 import re
+from datasets import Dataset as HFDataset, DatasetDict
 
 def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
     """
