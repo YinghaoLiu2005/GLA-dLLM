@@ -1,7 +1,7 @@
 import torch
 import re
 from datasets import Dataset as HFDataset, DatasetDict
-
+import torch.nn as nn
 def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
     """
     Map new attention keys to possible old checkpoint keys.
@@ -55,7 +55,43 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
             seen.add(k)
     return out
 
+def _custom_init_missing_param(param: torch.Tensor, name: str):
+    """
+    针对 checkpoint 中缺失的参数，根据名字进行特定的数学初始化。
+    """
+    with torch.no_grad():
+        # 1. Beta / Gate (最重要的修改)
+        # 目标：让 sigmoid(beta) 接近 0，保留长距离历史
+        if "b_proj" in name or "gate_param" in name:
+            nn.init.uniform_(param, -3.0, -1.0)
+            return "Uniform(-3, -1) [Beta Logic]"
 
+        # 2. 融合层 (Out Project)
+        # 目标：实现 0.5 * A + 0.5 * B
+        if "out_project.weight" in name:
+            d = param.shape[0] # output dim
+            # input dim is 2d, so param shape is [d, 2d]
+            identity_half = torch.eye(d, device=param.device, dtype=param.dtype) * 0.5
+            # 横向拼接 [0.5I, 0.5I]
+            init_val = torch.cat([identity_half, identity_half], dim=1)
+            param.copy_(init_val)
+            return "Mean Fusion Init [0.5I; 0.5I]"
+        
+        if "out_project.bias" in name:
+            nn.init.zeros_(param)
+            return "Zero Init"
+
+        # 3. 局部卷积 (Conv)
+        if "conv" in name and "weight" in name:
+            nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
+            return "Kaiming Normal"
+
+        # 4. 其他缺失的线性层 (Linear)
+        if any(k in name for k in ["proj", "linear"]):
+            nn.init.xavier_normal_(param)
+            return "Xavier Normal"
+            
+        return "Skipped (Default)"
 
 def load_partial_weights(
     new_model,
@@ -64,6 +100,7 @@ def load_partial_weights(
     verbose=True,
     only_print_first_layer: bool = True,
     layer_idx: int = 0,
+    init_missing: bool = True,
 ):
     new_state_dict = new_model.state_dict()
 
@@ -72,6 +109,7 @@ def load_partial_weights(
     skipped_missing = []
     skipped_shape = []       # (new_key, new_shape, old_shape, tried_old_key)
     expanded_keys = []       # [新增] 记录被扩展的 key
+    custom_initialized = []  # [新增] 记录被自定义初始化的 key
 
     for new_key, new_param in new_state_dict.items():
         loaded_flag = False
@@ -128,6 +166,12 @@ def load_partial_weights(
             # 如果是因为 shape mismatch 被上面捕获了，这里其实也会走到，
             # 但我们在 summary 打印时主要看 skipped_missing 和 skipped_shape
             # 简单的逻辑：没 loaded 就是 missing (或者 shape mismatch 导致没 load)
+            if init_missing:
+                # 排除 GatedDeltaNet 自带的特殊参数 (避免覆盖 A_log/dt)
+                if "A_log" not in new_key and "dt_bias" not in new_key:
+                    desc = _custom_init_missing_param(new_state_dict[new_key], new_key)
+                    custom_initialized.append(f"{new_key} -> {desc}")
+
             if not any(k in old_state_dict for k in tried):
                 skipped_missing.append(new_key)
 
@@ -146,6 +190,7 @@ def load_partial_weights(
         loaded_p = [k for k in loaded if layer_re.search(k)]
         missing_p = [k for k in skipped_missing if layer_re.search(k)]
         shape_p = [x for x in skipped_shape if layer_re.search(x[0])]
+        custom_p = [k for k in custom_initialized if layer_re.search(k.split(" -> ")[0])]
 
         print(f"\n========== Loaded Weights (Global + Layer {layer_idx}) ==========\n")
         for k in loaded_p:
@@ -156,6 +201,11 @@ def load_partial_weights(
             else:
                 print(k)
 
+        if custom_p:
+            print(f"\n========== Custom Initialized (Missing Keys) ==========\n")
+            for k in custom_p:
+                print(k)
+                
         print(f"\n========== Skipped (missing key) (Global + Layer {layer_idx}) ==========\n")
         for k in missing_p:
             print(k)
