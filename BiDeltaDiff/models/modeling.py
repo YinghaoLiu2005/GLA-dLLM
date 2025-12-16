@@ -28,6 +28,7 @@ from fla.layers.gated_deltanet import GatedDeltaNet
 from fla.modules import RMSNorm
 from fla.modules import GatedMLP
 from fla.modules.l2warp import l2_warp
+import math
 
 logger = logging.get_logger(__name__)
 
@@ -131,7 +132,7 @@ class BiDeltaDiffAttention(nn.Module):
         out_bwd = torch.flip(out_bwd, dims=[1])
 
         # 3. Fusion (Sum)
-        output = self.out_project(0.5 * torch.cat([out_fwd, out_bwd], dim=-1))  # Concatenate along feature dimension
+        output = self.out_project(torch.cat([out_fwd, out_bwd], dim=-1))  # Concatenate along feature dimension
         
         # Merge attentions if requested (optional debugging)
         attentions = None
@@ -220,9 +221,17 @@ class BiDeltaDiffPreTrainedModel(PreTrainedModel):
                 module.weight.data[module.padding_idx].zero_()
         
         # KDA 特有的初始化逻辑 (参考 fla 源码)
-        if isinstance(module, GatedDeltaNet):
-            # 这里可以保留 KDA 的特殊初始化，或者简单用正态分布
-            pass
+        elif isinstance(module, GatedDeltaNet) and next(module.parameters()).device.type != 'meta':
+            with torch.no_grad():
+                module.A_log.copy_(nn.init.uniform_(module.A_log, a=0, b=16).log())
+                module.A_log._no_weight_decay = True
+                dt = torch.exp(
+                    nn.init.uniform_(module.dt_bias) * (math.log(0.1) - math.log(0.001)) + math.log(0.001),
+                ).clamp(min=1e-4)
+                # Inverse of softplus: https://github.com/pytorch/pytorch/issues/72759
+                inv_dt = dt + torch.log(-torch.expm1(-dt))
+                module.dt_bias.copy_(inv_dt)
+                module.dt_bias._no_weight_decay = True
 
 
 class BiDeltaDiffModel(BiDeltaDiffPreTrainedModel):

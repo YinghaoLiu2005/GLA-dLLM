@@ -132,7 +132,7 @@ def main():
         data_args=data_args,
         pipeline_args=pipeline_args,
     )
-    data_args.file_pattern = "code_v1.1_clean.jsonl"
+    data_args.file_pattern = "mixed_data.jsonl"
     dataset = Dataset(data_args)
     if (
         not is_resuming

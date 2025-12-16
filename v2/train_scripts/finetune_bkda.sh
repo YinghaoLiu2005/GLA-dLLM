@@ -11,8 +11,8 @@ export TRANSFORMERS_CACHE="/data/yinghaoliu/hf_cache/hub"
 
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
 custom_model_path=/data/yinghaoliu/GLA-dLLM/BiDeltaDiff/models
-dataset_path=/data/yinghaoliu/datasets/SFT/code
-output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BKDA
+dataset_path=/data/yinghaoliu/datasets/SFT
+output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BGDN
 deepspeed_args="--master_port=11000"
 conversation_template=fast_dllm_v2
 
@@ -48,11 +48,12 @@ cmd="deepspeed ${deepspeed_args} \
     ${resume_arg} \
     --conversation_template ${conversation_template} \
     --num_train_epochs 1 \
-    --learning_rate 1e-5 \
+    --learning_rate 2e-5 \
     --lr_scheduler_type constant_with_warmup \
-    --warmup_ratio 0.03 \
+    --warmup_steps 500 \
     --disable_group_texts 0 \
     --block_size 512 \
+    --max_steps 6000 \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 64 \
     --deepspeed v2/configs/ds_config_zero2_no_offload.json \
@@ -62,13 +63,12 @@ cmd="deepspeed ${deepspeed_args} \
     --logging_steps 1 \
     --do_train \
     --ddp_timeout 72000 \
-    --save_steps 1000 \
+    --save_steps 100 \
     --dataloader_num_workers 8 \
     --preprocessing_num_workers 16 \
     --save_total_limit 2 \
     --gradient_checkpointing 1 \
-    --dataset_num_shards 8 \
-    --dataset_shard_index 0 \
+
     "
 
 echo $cmd
