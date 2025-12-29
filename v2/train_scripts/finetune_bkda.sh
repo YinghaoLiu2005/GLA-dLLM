@@ -1,5 +1,5 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1
 export PYTHONPATH=/data/yinghaoliu/GLA-dLLM:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export TMPDIR=/data/yinghaoliu/tmp
@@ -11,9 +11,9 @@ export TRANSFORMERS_CACHE="/data/yinghaoliu/hf_cache/hub"
 
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
 custom_model_path=/data/yinghaoliu/GLA-dLLM/BiDeltaDiff/models
-dataset_path=/data/yinghaoliu/datasets/SFT
-output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_BGDN
-deepspeed_args="--master_port=11000"
+dataset_path=/data/yinghaoliu/datasets/SFT/chat
+output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B_test01
+deepspeed_args="--master_port=12000"
 conversation_template=fast_dllm_v2
 
 
@@ -47,15 +47,15 @@ cmd="deepspeed ${deepspeed_args} \
     --output_dir ${output_dir} \
     ${resume_arg} \
     --conversation_template ${conversation_template} \
-    --num_train_epochs 1 \
-    --learning_rate 2e-5 \
+    --num_train_epochs 100 \
+    --learning_rate 1e-4 \
     --lr_scheduler_type constant_with_warmup \
-    --warmup_steps 500 \
+
     --disable_group_texts 0 \
     --block_size 512 \
-    --max_steps 6000 \
+
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 64 \
+    --gradient_accumulation_steps 1 \
     --deepspeed v2/configs/ds_config_zero2_no_offload.json \
     --bf16 \
     --run_name finetune \

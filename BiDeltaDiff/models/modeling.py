@@ -24,7 +24,7 @@ from .configuration import BiDeltaDiffConfig
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 from einops import rearrange, repeat
 
-from fla.layers.gated_deltanet import GatedDeltaNet
+from BiDeltaDiff.kernel.layers.gated_deltanet import GatedDeltaNet
 from fla.modules import RMSNorm
 from fla.modules import GatedMLP
 from fla.modules.l2warp import l2_warp
@@ -53,9 +53,10 @@ class BiDeltaDiffAttention(nn.Module):
         self.hidden_size = config.hidden_size
         self.is_bidirectional = config.is_bidirectional
         self.out_project = nn.Linear(config.hidden_size * 2, config.hidden_size)
+        self.bd_size = config.bd_size
 
         # 正向流 (Forward Stream)
-        self.fwd_attn = GatedDeltaNet(
+        self.attn = GatedDeltaNet(
             mode=config.attn_mode,
             hidden_size=config.hidden_size,
             expand_v=config.expand_v,
@@ -66,25 +67,11 @@ class BiDeltaDiffAttention(nn.Module):
             conv_size=config.conv_size,
             chunk_size=config.chunk_size, # 关键参数
             layer_idx=layer_idx,
-            # 这里的 norm_eps 传给 KDA 内部的 norm
-            norm_eps=config.rms_norm_eps 
+            norm_eps=config.rms_norm_eps,
+            bd_size=config.bd_size
+
         )
 
-        # 反向流 (Backward Stream) - 只有开启双向才初始化
-        if self.is_bidirectional:
-            self.bwd_attn = GatedDeltaNet(
-                mode=config.attn_mode,
-                hidden_size=config.hidden_size,
-                expand_v=config.expand_v,
-                head_dim=config.head_dim,
-                num_heads=config.num_heads,
-                num_v_heads=config.num_key_value_heads,
-                use_short_conv=config.use_short_conv,
-                conv_size=config.conv_size,
-                chunk_size=config.chunk_size,
-                layer_idx=layer_idx,
-                norm_eps=config.rms_norm_eps
-            )
 
     def forward(
         self,
@@ -93,53 +80,23 @@ class BiDeltaDiffAttention(nn.Module):
         past_key_values: Optional[Cache] = None,
         use_cache: bool = False,
         output_attentions: bool = False,
+        num_clean_chunks: int = 0,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Cache]]:
         
         # 1. Forward Pass
         # KDA 的 forward 返回 (hidden_states, attentions, past_key_values)
-        out_fwd, attns_fwd, past_key_values = self.fwd_attn(
+        output, attns, past_key_values = self.attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             past_key_values=past_key_values,
             use_cache=use_cache,
             output_attentions=output_attentions,
+            num_clean_chunks=num_clean_chunks,
             **kwargs
         )
 
-        if not self.is_bidirectional:
-            return out_fwd, attns_fwd, past_key_values
-        
-            
-        if not hidden_states.is_contiguous():
-            hidden_states = hidden_states.contiguous()    
-        # 2. Backward Pass (if bidirectional)
-        # Flip input: [Batch, Seq, Dim] -> flip along dim 1
-        hidden_states_rev = torch.flip(hidden_states, dims=[1]).contiguous()
-        
-        # 注意：反向流不需要 cache，因为扩散通常是一次性并行计算
-        # 且 mask 也需要翻转 (如果有的话，通常 DeltaNet 不需要 mask)
-        out_bwd, attns_bwd, _ = self.bwd_attn(
-            hidden_states=hidden_states_rev,
-            attention_mask=None, # 线性注意力通常处理 mask 的方式不同，这里假设是 causal 或 full
-            past_key_values=None,
-            use_cache=False, 
-            output_attentions=output_attentions,
-            **kwargs
-        )
-
-        # Flip output back
-        out_bwd = torch.flip(out_bwd, dims=[1])
-
-        # 3. Fusion (Sum)
-        output = self.out_project(torch.cat([out_fwd, out_bwd], dim=-1))  # Concatenate along feature dimension
-        
-        # Merge attentions if requested (optional debugging)
-        attentions = None
-        if output_attentions:
-            attentions = (attns_fwd, attns_bwd)
-
-        return output, attentions, past_key_values
+        return output, attns, past_key_values
 
 
 class BiDeltaDiffBlock(nn.Module):
@@ -172,6 +129,7 @@ class BiDeltaDiffBlock(nn.Module):
         past_key_values: Optional[Cache] = None,
         use_cache: bool = False,
         output_attentions: bool = False,
+        num_clean_chunks: int = 0,
         **kwargs,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         
@@ -186,6 +144,7 @@ class BiDeltaDiffBlock(nn.Module):
             past_key_values=past_key_values,
             use_cache=use_cache,
             output_attentions=output_attentions,
+            num_clean_chunks=num_clean_chunks,
             **kwargs
         )
         
@@ -268,6 +227,7 @@ class BiDeltaDiffModel(BiDeltaDiffPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        num_clean_chunks: int = 0,
         **kwargs
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         
@@ -303,6 +263,7 @@ class BiDeltaDiffModel(BiDeltaDiffPreTrainedModel):
                 past_key_values=layer_past,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
+                num_clean_chunks=num_clean_chunks,
                 **kwargs
             )
 
@@ -384,11 +345,13 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
         这里是 Fast-dLLM 的核心逻辑：
         它在 forward 内部进行 Mask 采样（加噪），并构造 Complementary Mask。
         """
-        
+        num_clean_chunks = 0
         # --- Fast-dLLM Diffusion Logic Start ---
         if self.training:
             original_labels = labels.clone()
             original_input_ids = input_ids.clone()
+            current_seq_len = input_ids.shape[1]
+            num_clean_chunks = current_seq_len // self.model.bd_size
 
             noisy_input_ids = input_ids.clone()
 
@@ -404,7 +367,7 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
             noisy_input_ids[labels != -100] = x_t[labels != -100]
             mask = (noisy_input_ids != mask_id)
             labels[mask] = -100
-            input_ids = torch.cat([noisy_input_ids, input_ids.reshape(labels.shape)], dim=1)
+            input_ids = torch.cat([input_ids.reshape(labels.shape), noisy_input_ids], dim=1)
 
             complementary_noisy_input_ids = original_input_ids.clone()
             complementary_labels = original_labels.clone()
@@ -416,7 +379,7 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
             complementary_noisy_input_ids[complementary_labels != -100] = complementary_x_t[complementary_labels != -100]
             complementary_mask = (complementary_noisy_input_ids != mask_id)
             complementary_labels[complementary_mask] = -100
-            complementary_input_ids = torch.cat([complementary_noisy_input_ids, complementary_input_ids.reshape(complementary_labels.shape)], dim=1)
+            complementary_input_ids = torch.cat([complementary_input_ids.reshape(complementary_labels.shape), complementary_noisy_input_ids], dim=1)
 
             input_ids = torch.cat([input_ids, complementary_input_ids], dim=0)
             labels = torch.cat([labels, complementary_labels], dim=0)
@@ -433,6 +396,7 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
             output_attentions=False,
             output_hidden_states=True, # 需要 hidden states 来算 logits
             return_dict=True,
+            num_clean_chunks=num_clean_chunks,
             **kwargs
         )
 
@@ -440,12 +404,10 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
 
         # Compute Logits
         if self.training:
-            hidden_states = hidden_states[:, :hidden_states.shape[1]//2, :]
+            hidden_states = hidden_states[:, hidden_states.shape[1]//2:, :]
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
-
-        logits = self.lm_head(hidden_states)
 
         loss = None
         if labels is not None:

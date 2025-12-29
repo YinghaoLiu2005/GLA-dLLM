@@ -132,8 +132,34 @@ def main():
         data_args=data_args,
         pipeline_args=pipeline_args,
     )
-    data_args.file_pattern = "mixed_data.jsonl"
+    data_args.file_pattern = "chat.jsonl"
     dataset = Dataset(data_args)
+
+    # --- 新增：Overfitting 测试逻辑 ---
+    # 仅当你想做 overfitting 测试时开启（可以通过环境变量或硬编码控制）
+    # 这里为了方便直接硬编码，测试完记得注释掉
+    DO_OVERFIT_TEST = True 
+    if DO_OVERFIT_TEST:
+        print("\n" + "!"*50)
+        print(">>> [DEBUG] 开启 Overfitting 测试模式：仅使用前 100 条数据")
+        
+        backend_ds = dataset.backend_dataset
+        
+        # 处理 DatasetDict (通常包含 'train')
+        if hasattr(backend_ds, "keys") and "train" in backend_ds:
+            # 取前 10 条，如果不足 10 条则取全部
+            num_samples = min(10, len(backend_ds["train"]))
+            backend_ds["train"] = backend_ds["train"].select(range(num_samples))
+            print(f">>> 已截取 'train' split 前 {num_samples} 条数据")
+            
+        # 处理单一 Dataset
+        elif hasattr(backend_ds, "select"):
+            num_samples = min(100, len(backend_ds))
+            dataset.backend_dataset = backend_ds.select(range(num_samples))
+            print(f">>> 已截取 Dataset 前 {num_samples} 条数据")
+            
+        print("!"*50 + "\n")
+    # --------------------------------
     if (
         not is_resuming
         and data_args.dataset_num_shards > 1

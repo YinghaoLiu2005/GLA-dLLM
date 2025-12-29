@@ -1,7 +1,7 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES=0,1
 model_name_or_path=/data/yinghaoliu/GLA-dLLM/trained_models/Fast_dLLM_v2_1.5B
-dataset_path=/data/yinghaoliu/datasets/SFT/code
+dataset_path=/data/yinghaoliu/datasets/SFT/chat
 output_dir=/data/yinghaoliu/GLA-dLLM/trained_models/finetune_fast_dLLM_v2_1.5B
 deepspeed_args="--master_port=11000"
 conversation_template=fast_dllm_v2
@@ -37,13 +37,13 @@ cmd="deepspeed ${deepspeed_args} \
     ${resume_arg} \
     --conversation_template ${conversation_template} \
     --num_train_epochs 1 \
-    --learning_rate 1e-5 \
+    --learning_rate 2e-5 \
     --lr_scheduler_type constant_with_warmup \
-    --warmup_ratio 0.03 \
+    --warmup_steps 500 \
     --disable_group_texts 0 \
     --block_size 512 \
-    --per_device_train_batch_size 2 \
-    --gradient_accumulation_steps 32 \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 128 \
     --deepspeed configs/ds_config_zero2_no_offload.json \
     --bf16 \
     --run_name finetune \
