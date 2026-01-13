@@ -2,7 +2,7 @@ import os
 from transformers import AutoConfig, AutoModelForCausalLM
 
 # 确保路径是绝对路径，防止相对路径找不到文件
-model_path = os.path.abspath("BiDeltaDiff/models")
+model_path = os.path.abspath("BiDeltaDiff/trained_models")
 
 print(f"尝试从以下路径加载配置: {model_path}")
 

@@ -13,7 +13,7 @@ from torch.nn import functional as F
 
 from fla.layers.utils import get_unpad_data, index_first_axis, pad_input
 from fla.modules import FusedRMSNormGated, RMSNorm, ShortConvolution
-from kernel.ops.gated_delta_rule import chunk_gated_delta_rule, fused_recurrent_gated_delta_rule
+from ..ops.gated_delta_rule import chunk_gated_delta_rule, fused_recurrent_gated_delta_rule
 
 if TYPE_CHECKING:
     from transformers.processing_utils import Unpack
@@ -101,6 +101,7 @@ class GatedDeltaNet(nn.Module):
         layer_idx: int = None,
         norm_eps: float = 1e-5,
         bd_size: int = 64,
+        is_bidirectional: bool = True,
         **kwargs,
     ) -> GatedDeltaNet:
         super().__init__()
@@ -125,6 +126,7 @@ class GatedDeltaNet(nn.Module):
         self.value_dim = int(self.num_v_heads * self.head_v_dim)
         self.layer_idx = layer_idx
         self.bd_size = bd_size
+        self.is_bidirectional = is_bidirectional
 
         # Consistency check: Ensure expand_v produces integer values
         if not math.isclose(self.num_v_heads * self.head_dim * expand_v, self.value_dim, rel_tol=1e-5):
@@ -150,7 +152,7 @@ class GatedDeltaNet(nn.Module):
         self.a_proj = nn.Linear(hidden_size, self.num_v_heads, bias=False)
         self.b_proj = nn.Linear(hidden_size, self.num_v_heads, bias=False)
 
-        A = torch.empty(self.num_v_heads, dtype=torch.float32).uniform_(0, 16)
+        A = torch.empty(self.num_v_heads, dtype=torch.float32).uniform_(0, 1.0)
         self.A_log = nn.Parameter(torch.log(A))
         self.A_log._no_weight_decay = True
         # hard coded for now
@@ -201,6 +203,8 @@ class GatedDeltaNet(nn.Module):
             self.o_norm = RMSNorm(self.head_v_dim, eps=norm_eps, dtype=torch.float32)
         self.o_proj = nn.Linear(2*self.value_dim, hidden_size, bias=False)
 
+        self.output_norm = RMSNorm(2*self.value_dim, eps=norm_eps)
+
         self.apply_diffusion_concat_init()
 
 
@@ -231,7 +235,7 @@ class GatedDeltaNet(nn.Module):
             if self.o_proj.bias is not None:
                 self.o_proj.bias.zero_()
 
-        print(f"Successfully initialized o_proj with [0.5*I, 0.5*I] diagonal structure for cold start.")
+
 
     def forward(
         self,
@@ -325,18 +329,20 @@ class GatedDeltaNet(nn.Module):
             )
             # B. 反向流：局部块扫描 (仅针对 Noisy 部分)
             # 实现图中蓝色区域 (Block Diagonal) 的上三角部分
-            is_bidirectional = getattr(self.config, 'is_bidirectional', True) # 假设配置中有此项
-            if is_bidirectional and q_len > L:
+            if self.is_bidirectional and q_len > L:
                 # 提取 Noisy 部分
                 q_n, k_n, v_n, g_n, b_n = [x[:, L:] for x in [q, k, v, g, beta]]
                 
                 # 为了实现块间独立，将 512 序列拆分为 8 个 64 长度的 Batch
                 # 使用 Batch 维度隔离来保证 Block Diagonal
-                q_b, k_b, v_b, g_b, b_b = [
+                q_b, k_b, v_b = [
                     rearrange(x, 'b (n c) h d -> (b n) c h d', c=bd_size) 
-                    for x in [q_n, k_n, v_n, g_n, b_n]
+                    for x in [q_n, k_n, v_n]
                 ]
-                
+                g_b, b_b = [
+                    rearrange(x, 'b (n c) h -> (b n) c h', c=bd_size) 
+                    for x in [g_n, b_n]
+                ]                
                 # 块内翻转
                 q_rev, k_rev, v_rev, g_rev, b_rev = [torch.flip(x, dims=[1]) for x in [q_b, k_b, v_b, g_b, b_b]]
                 
@@ -367,9 +373,6 @@ class GatedDeltaNet(nn.Module):
             o_fwd, recurrent_state = fused_recurrent_gated_delta_rule(...)
             o_bwd = torch.zeros_like(o_fwd)
 
-
-
-
         if self.use_gate:
             g = rearrange(self.g_proj(hidden_states), '... (h d) -> ... h d', d=self.head_v_dim)
             o_fwd = self.o_norm(o_fwd, g)
@@ -379,6 +382,7 @@ class GatedDeltaNet(nn.Module):
             o_bwd = self.o_norm(o_bwd)
         o_combined = torch.cat([o_fwd, o_bwd], dim=-1)
         o_combined = rearrange(o_combined, 'b t h d -> b t (h d)')
+        o_combined = self.output_norm(o_combined)
         o = self.o_proj(o_combined)
 
         if past_key_values is not None:
@@ -388,7 +392,7 @@ class GatedDeltaNet(nn.Module):
                 layer_idx=self.layer_idx,
                 offset=q_len,
             )
-            
+
         if attention_mask is not None:
             o = pad_input(o.squeeze(0), indices, batch_size, q_len)
 

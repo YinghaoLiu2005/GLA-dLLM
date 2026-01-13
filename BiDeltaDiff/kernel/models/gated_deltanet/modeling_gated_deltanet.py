@@ -12,8 +12,8 @@ from transformers.utils import logging
 from transformers.utils.deprecation import deprecate_kwarg
 
 from fla.layers.attn import Attention
-from kernel.layers.gated_deltanet import GatedDeltaNet
-from kernel.models.gated_deltanet.configuration_gated_deltanet import GatedDeltaNetConfig
+from ...layers.gated_deltanet import GatedDeltaNet
+from .configuration_gated_deltanet import GatedDeltaNetConfig
 from fla.models.utils import Cache, FLAGenerationMixin
 from fla.modules import FusedCrossEntropyLoss, FusedLinearCrossEntropyLoss, RMSNorm
 from fla.modules import GatedMLP as GatedDeltaNetMLP

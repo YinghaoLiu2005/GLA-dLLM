@@ -12,15 +12,11 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
 
     # --- 1. Global Keys Mapping (Embeddings, Head, Norm) ---
     if "embed_tokens" in new_key:
-        # Fast-dLLM / Qwen usually uses model.embed_tokens.weight
         candidates.append("model.embed_tokens.weight")
-        candidates.append("transformer.wte.weight") # For older versions
     elif "lm_head" in new_key:
         candidates.append("lm_head.weight")
-    elif "norm.weight" in new_key:
-        # BiDeltaDiff (model.norm) -> Fast-dLLM (model.norm or transformer.ln_f)
+    elif new_key == "model.norm.weight" or new_key == "norm.weight":
         candidates.append("model.norm.weight")
-        candidates.append("transformer.ln_f.weight")
 
     # --- 2. Layer-wise Mapping ---
     # Map: model.layers.N.attn.fwd_attn.q_proj  -> model.layers.N.self_attn.q_proj
@@ -33,18 +29,15 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
         
         # A. Attention Projection Mapping
         # Matches: attn.fwd_attn.q_proj.weight OR attn.bwd_attn.q_proj.weight
-        m_attn = re.match(r"^attn\.(fwd_attn|bwd_attn)\.(q_proj|k_proj|v_proj)\.weight$", suffix)
+        m_attn = re.match(r"^attn\.attn\.(q_proj|k_proj|v_proj)\.weight$", suffix)
         if m_attn:
-            _, proj = m_attn.groups()
-            candidates.extend([
-                f"{prefix}.self_attn.{proj}.weight",
-                f"{prefix}.attn.{proj}.weight",
-            ])
+            proj = m_attn.group(1)
+            candidates.append(f"{prefix}.self_attn.{proj}.weight")
         
         # B. LayerNorm Mapping
-        if "attn_norm" in suffix:
+        if suffix == "attn_norm.weight":
             candidates.append(f"{prefix}.input_layernorm.weight")
-        if "mlp_norm" in suffix:
+        if suffix == "mlp_norm.weight":
             candidates.append(f"{prefix}.post_attention_layernorm.weight")
 
     # Deduplicate but keep order
@@ -56,31 +49,12 @@ def _candidate_old_keys_for_new_key(new_key: str) -> list[str]:
             seen.add(k)
     return out
 
-def _init_fusion_layer(param: torch.Tensor, name: str):
-    """
-    initialize for out_project 
-    [0.5 * Identity, 0.5 * Identity]
-    """
-    with torch.no_grad():
-        # 1. 处理权重: 构造 [d, 2d] 的双单位矩阵
-        if "out_project.weight" in name:
-            d = param.shape[0]  # output_dim (hidden_size)
-            
-            # 创建 0.5 的单位矩阵
-            identity_half = torch.eye(d, device=param.device, dtype=param.dtype) * 0.5
-            
-            # 横向拼接: [0.5I, 0.5I]
-            # 结果形状: [d, 2d]
-            init_val = torch.cat([identity_half, identity_half], dim=1)
-            
-            param.copy_(init_val)
-            return "Mean Fusion Init [0.5I; 0.5I]"
-        
-        # 2. 处理偏置: 置零
-        if "out_project.bias" in name:
-            nn.init.zeros_(param)
-            return "Zero Init"
-            
+def _init_fusion_layer(param, key_name):
+    # 简单的初始化辅助函数
+    if param.dim() < 2:
+        return None
+    # 如果是新增加的参数（如 a_proj, b_proj, g_proj, conv1d 等），可以在这里做特殊初始化
+    # 目前保持默认（随机）
     return None
 
 def load_partial_weights(

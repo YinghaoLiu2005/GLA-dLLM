@@ -52,7 +52,6 @@ class BiDeltaDiffAttention(nn.Module):
         self.layer_idx = layer_idx
         self.hidden_size = config.hidden_size
         self.is_bidirectional = config.is_bidirectional
-        self.out_project = nn.Linear(config.hidden_size * 2, config.hidden_size)
         self.bd_size = config.bd_size
 
         # 正向流 (Forward Stream)
@@ -413,6 +412,12 @@ class BiDeltaDiffForCausalLM(BiDeltaDiffPreTrainedModel, GenerationMixin):
         if labels is not None:
             # Standard Cross Entropy
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
+
+        if self.training:
+            # 检查第 513 个位置（Noisy 部分的第一个 token）
+            # input_ids[512] 应该是被 mask 的，labels[0] 应该是这个位置的原词
+            print(f"DEBUG: Input_at_Noisy_Start: {input_ids[0, 512].item()}")
+            print(f"DEBUG: Label_at_Noisy_Start: {labels[0, 0].item()}")
 
         return CausalLMOutputWithPastAndBlockCache(
             loss=loss,

@@ -45,7 +45,7 @@ class BiDeltaDiffConfig(PretrainedConfig):
         tie_word_embeddings: bool = False,
         # --- KDA 特有 Tricks (保留) ---
         attn_mode: str = "chunk",       # 必须是 chunk 模式以加速
-        use_short_conv: bool = True,    # [保留] 局部卷积，增强局部性
+        use_short_conv: bool = False,    # [保留] 局部卷积，增强局部性
         conv_size: int = 4,             # 卷积核大小
         expand_v: float = 1.0,          # [保留] Value 扩展系数，先设 1.0
         use_l2warp: bool = False,       # KDA 的数值稳定性 Trick，默认关，除非你明确知道怎么用
@@ -53,7 +53,7 @@ class BiDeltaDiffConfig(PretrainedConfig):
         is_bidirectional=True,
         chunk_size=64,
         use_cache=False,
-        bd_size=32,
+        bd_size=64,
 
         # --- 优化与初始化 ---
         fuse_norm: bool = True,

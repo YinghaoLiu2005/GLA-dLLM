@@ -48,7 +48,7 @@ cmd="deepspeed ${deepspeed_args} \
     ${resume_arg} \
     --conversation_template ${conversation_template} \
     --num_train_epochs 100 \
-    --learning_rate 1e-4 \
+    --learning_rate 1e-5 \
     --lr_scheduler_type constant_with_warmup \
 
     --disable_group_texts 0 \
@@ -63,11 +63,12 @@ cmd="deepspeed ${deepspeed_args} \
     --logging_steps 1 \
     --do_train \
     --ddp_timeout 72000 \
-    --save_steps 100 \
+    --save_steps 500 \
     --dataloader_num_workers 8 \
     --preprocessing_num_workers 16 \
     --save_total_limit 2 \
     --gradient_checkpointing 1 \
+    --max_grad_norm 1.0 \
 
     "
 

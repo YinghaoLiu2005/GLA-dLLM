@@ -57,6 +57,7 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64(
     SAVE_NEW_VALUE: tl.constexpr,
     USE_EXP2: tl.constexpr,
     IS_VARLEN: tl.constexpr,
+    USE_CLEAN_STATES: tl.constexpr,
     clean_states,
     num_clean_chunks,
 ):
@@ -284,7 +285,7 @@ def chunk_gated_delta_rule_fwd_kernel_h_blockdim64(
     'USE_INITIAL_STATE': lambda args: args['dh0'] is not None,
     'USE_FINAL_STATE_GRADIENT': lambda args: args['dht'] is not None,
     'IS_VARLEN': lambda args: args['cu_seqlens'] is not None,
-    'USE_CLEAN_STATES': lambda args: args['clean_states'] is not None,
+    'USE_CLEAN_STATES': lambda args: args['d_clean_states'] is not None,
 })
 @triton.autotune(
     configs=[
@@ -325,6 +326,7 @@ def chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64(
     USE_FINAL_STATE_GRADIENT: tl.constexpr,
     USE_EXP2: tl.constexpr,
     IS_VARLEN: tl.constexpr,
+    USE_CLEAN_STATES: tl.constexpr,
     d_clean_states,
     num_clean_chunks,
 ):
@@ -593,6 +595,7 @@ def chunk_gated_delta_rule_fwd_h(
     chunk_indices: torch.LongTensor | None = None,
     use_exp2: bool = False,
     num_clean_chunks: int = 0,
+    clean_states: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *k.shape, u.shape[-1]
     BT = chunk_size
@@ -611,9 +614,9 @@ def chunk_gated_delta_rule_fwd_h(
 
     v_new = torch.empty_like(u) if save_new_value else None
 
-    clean_states_buffer = None
+    clean_states = None
     if num_clean_chunks > 0:
-        clean_states_buffer = k.new_empty(B, H, num_clean_chunks, K, V, dtype=torch.float32)
+        clean_states = k.new_empty(B, H, num_clean_chunks, K, V, dtype=torch.float32)
 
     def grid(meta): return (triton.cdiv(V, meta['BV']), N*H)
     chunk_gated_delta_rule_fwd_kernel_h_blockdim64[grid](
@@ -634,10 +637,10 @@ def chunk_gated_delta_rule_fwd_h(
         V=V,
         BT=BT,
         USE_EXP2=use_exp2,
-        clean_states=clean_states_buffer,
+        clean_states=clean_states,
         num_clean_chunks=num_clean_chunks,
     )
-    return h, v_new, final_state, clean_states_buffer
+    return h, v_new, final_state, clean_states
 
 
 def chunk_gated_delta_rule_bwd_dhu(
@@ -656,7 +659,7 @@ def chunk_gated_delta_rule_bwd_dhu(
     chunk_indices: torch.LongTensor | None = None,
     use_exp2: bool = False,
     num_clean_chunks: int = 0,
-    d_clean_states_buffer: torch.Tensor | None = None,
+    d_clean_states: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *q.shape, do.shape[-1]
     # N: the actual number of sequences in the batch with either equal or variable lengths
@@ -674,8 +677,8 @@ def chunk_gated_delta_rule_bwd_dhu(
     dh0 = torch.empty_like(h0, dtype=torch.float32) if h0 is not None else None
     dv2 = torch.empty_like(dv)
 
-    if num_clean_chunks > 0 and d_clean_states_buffer is None:
-        d_clean_states_buffer = torch.zeros(B, num_clean_chunks, H, K, V, dtype=torch.float32, device=q.device)
+    if num_clean_chunks > 0 and d_clean_states is None:
+        d_clean_states = torch.zeros(B, num_clean_chunks, H, K, V, dtype=torch.float32, device=q.device)
 
     def grid(meta): return (triton.cdiv(V, meta['BV']), N*H)
     chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64[grid](
@@ -699,9 +702,9 @@ def chunk_gated_delta_rule_bwd_dhu(
         V=V,
         BT=BT,
         USE_EXP2=use_exp2,
-        d_clean_states=d_clean_states_buffer,
+        d_clean_states=d_clean_states,
         num_clean_chunks=num_clean_chunks,
 
     )
-    return dh, dh0, dv2, d_clean_states_buffer
+    return dh, dh0, dv2, d_clean_states
     

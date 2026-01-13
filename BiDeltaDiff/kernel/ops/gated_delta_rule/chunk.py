@@ -5,7 +5,7 @@ import warnings
 import torch
 
 from fla.modules.l2norm import l2norm_bwd, l2norm_fwd
-from kernel.ops.common.chunk_delta_h import chunk_gated_delta_rule_bwd_dhu, chunk_gated_delta_rule_fwd_h
+from ..common.chunk_delta_h import chunk_gated_delta_rule_bwd_dhu, chunk_gated_delta_rule_fwd_h
 from fla.ops.common.chunk_o import chunk_bwd_dqkwg, chunk_bwd_dv_local, chunk_fwd_o
 from fla.ops.common.chunk_scaled_dot_kkt import chunk_scaled_dot_kkt_fwd
 from fla.ops.gated_delta_rule.wy_fast import prepare_wy_repr_bwd, recompute_w_u_fwd
@@ -47,7 +47,7 @@ def chunk_gated_delta_rule_fwd(
         g=g,
         cu_seqlens=cu_seqlens,
     )
-    h, v_new, final_state, clean_states_buffer = chunk_gated_delta_rule_fwd_h(
+    h, v_new, final_state, clean_states = chunk_gated_delta_rule_fwd_h(
         k=k,
         w=w,
         u=u,
@@ -66,7 +66,7 @@ def chunk_gated_delta_rule_fwd(
         scale=scale,
         cu_seqlens=cu_seqlens,
     )
-    return g, o, A, final_state,clean_states_buffer
+    return g, o, A, final_state,clean_states
 
 
 def chunk_gated_delta_rule_bwd(
@@ -81,7 +81,7 @@ def chunk_gated_delta_rule_bwd(
     do: torch.Tensor,
     dht: torch.Tensor,
     cu_seqlens: torch.LongTensor | None = None,
-    clean_states_buffer: torch.Tensor | None = None,
+    clean_states: torch.Tensor | None = None,
     num_clean_chunks: int = 0,
 ):
     w, u = recompute_w_u_fwd(
@@ -100,7 +100,7 @@ def chunk_gated_delta_rule_bwd(
         initial_state=initial_state,
         output_final_state=False,
         cu_seqlens=cu_seqlens,
-        clean_states=clean_states_buffer,
+        clean_states=clean_states,
         num_clean_chunks=num_clean_chunks,
     )
     dv = chunk_bwd_dv_local(
@@ -177,7 +177,7 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
             q, q_rstd = l2norm_fwd(q)
             k, k_rstd = l2norm_fwd(k)
 
-        g, o, A, final_state,clean_states_buffer = chunk_gated_delta_rule_fwd(
+        g, o, A, final_state,clean_states = chunk_gated_delta_rule_fwd(
             q=q,
             k=k,
             v=v,
@@ -189,7 +189,7 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
             cu_seqlens=cu_seqlens,
             num_clean_chunks=num_clean_chunks,
         )
-        ctx.save_for_backward(q, q_rstd, k, k_rstd, v, g, beta, A, initial_state, cu_seqlens,clean_states_buffer)
+        ctx.save_for_backward(q, q_rstd, k, k_rstd, v, g, beta, A, initial_state, cu_seqlens,clean_states)
         ctx.num_clean_chunks = num_clean_chunks
         ctx.scale = scale
         ctx.use_qk_l2norm_in_kernel = use_qk_l2norm_in_kernel
@@ -203,7 +203,7 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
         do: torch.Tensor,
         dht: torch.Tensor,
     ):
-        q, q_rstd, k, k_rstd, v, g, beta, A, initial_state, cu_seqlens,clean_states_buffer = ctx.saved_tensors
+        q, q_rstd, k, k_rstd, v, g, beta, A, initial_state, cu_seqlens,clean_states = ctx.saved_tensors
         num_clean_chunks = ctx.num_clean_chunks
         dq, dk, dv, db, dg, dh0 = chunk_gated_delta_rule_bwd(
             q=q,
@@ -217,7 +217,7 @@ class ChunkGatedDeltaRuleFunction(torch.autograd.Function):
             do=do,
             dht=dht,
             cu_seqlens=cu_seqlens,
-            clean_states=clean_states_buffer,
+            clean_states=clean_states,
             num_clean_chunks=num_clean_chunks,
         )
         if ctx.use_qk_l2norm_in_kernel:
